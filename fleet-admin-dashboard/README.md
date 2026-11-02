@@ -24,7 +24,7 @@ only need one terminal. There is nothing else to install.
 3. Everyone after that signs up as a **Fleet Commander** and sees only their
    own vehicles. The administrator can promote, rename, reset or delete
    accounts on the Accounts page.
-
+ 
 ## What's in it
 
 | Page | What you can do |
