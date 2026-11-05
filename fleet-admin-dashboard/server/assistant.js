@@ -11,7 +11,7 @@
 // If the AI service fails or its free quota is used up, the built-in one answers instead.
 //   APP_TIMEZONE        optional, default Asia/Singapore ("today" for bookings)
 import { HELP_GUIDE } from "./assistant-guide.js";
-import { runBuiltin } from "./assistant-builtin.js";
+import { runBuiltin, guideSection, guideTitles } from "./assistant-builtin.js";
 import {
   BLOCK_FIELDS,
   DEPLOY_LABELS,
@@ -46,7 +46,7 @@ const TOOLS = [
   {
     name: "fleet_summary",
     description:
-      "Counts of AVAILABLE / DEPLOYED / UNAVAILABLE vehicles the user can see today, per vehicle type and per commander, and the most common reasons. Use for 'how many', 'readiness', 'what is down' questions.",
+      "Today's AVAILABLE / DEPLOYED / UNAVAILABLE counts, per type and commander, and top reasons.",
     input_schema: {
       type: "object",
       properties: {
@@ -58,28 +58,28 @@ const TOOLS = [
   {
     name: "search_vehicles",
     description:
-      "Find vehicles the user can see. Every filter is optional and they combine. Returns MID, type, status, reasons, commander. Use before proposing changes to several vehicles.",
+      "Find vehicles (all filters optional, combined). Returns MID, type, status, reasons, commander.",
     input_schema: {
       type: "object",
       properties: {
         mids: { type: "array", items: { type: "string" }, description: "Exact MIDs" },
         type: { type: "string", description: "Vehicle type (spelling is matched loosely)" },
         status: { type: "string", enum: ["available", "deployed", "unavailable"] },
-        reason: { type: "string", description: "Text that must appear in a reason, e.g. 'AIRCON', 'TASKING', 'VOR'" },
-        text: { type: "string", description: "Text to find in MID, type, remarks or any field value" },
-        commander: { type: "string", description: "Commander name (Admin)" },
-        limit: { type: "integer", description: "Max results, default 40, max 200" },
+        reason: { type: "string", description: "Field in the reasons, e.g. OVERSEAS, AIRCON, VOR" },
+        text: { type: "string", description: "Text in MID, type, remarks or a field value" },
+        commander: { type: "string" },
+        limit: { type: "integer", description: "Default 25" },
       },
     },
   },
   {
     name: "get_vehicle",
-    description: "Everything about one vehicle: status and why, every blocked field and maintenance item (with who set it and when), ignored criteria, remarks and bookings.",
+    description: "One vehicle: status, reasons, blocked fields, Y/N items, remarks, bookings.",
     input_schema: { type: "object", properties: { mid: MID_PROP }, required: ["mid"] },
   },
   {
     name: "list_bookings",
-    description: "Calendar bookings the user can see, optionally only those overlapping a date range or for one vehicle.",
+    description: "Calendar bookings, optionally in a date range or for one vehicle.",
     input_schema: {
       type: "object",
       properties: {
@@ -91,16 +91,13 @@ const TOOLS = [
   },
   {
     name: "get_rules",
-    description: "The criteria list (blocked fields and Y/N maintenance items) and the disregard rules (criteria ignored per vehicle type).",
+    description: "Field names (blocked fields, Y/N items) and disregard rules per vehicle type.",
     input_schema: { type: "object", properties: { type: { type: "string", description: "Only this vehicle type (optional)" } } },
   },
   {
     name: "propose_vehicle_change",
     description:
-      "PREPARE (not save) a change to one existing vehicle. The user sees a card and must press Confirm. Use one call per vehicle. " +
-      "blocks: blocked-field name -> new text value, or \"\" to clear it (e.g. {\"TASKING\": \"XCA\"}, {\"VOR STATUS\": \"X\"}). " +
-      "maintenance: item name -> \"Y\", \"N\" or \"\" to clear (e.g. {\"AIRCON\": \"N\"}). " +
-      "Field names must be from get_rules. Only include what the user asked to change.",
+      "Prepare (NOT save) a change to one vehicle; user confirms. blocks: {FIELD: text or \"\" to clear}, e.g. {\"TASKING\": \"XCA\"}. maintenance: {ITEM: \"Y\"|\"N\"|\"\"}. Only what was asked.",
     input_schema: {
       type: "object",
       properties: {
@@ -116,7 +113,7 @@ const TOOLS = [
   },
   {
     name: "propose_new_vehicle",
-    description: "PREPARE (not save) a new vehicle. The user must press Confirm. Check with get_vehicle first that the MID doesn't exist.",
+    description: "Prepare (NOT save) a new vehicle; user confirms.",
     input_schema: {
       type: "object",
       properties: {
@@ -132,7 +129,7 @@ const TOOLS = [
   {
     name: "propose_booking",
     description:
-      "PREPARE (not save) a calendar booking. The user must press Confirm. kind: tasking (vehicles show as DEPLOYED), servicing or maintenance (UNAVAILABLE), other (no status change). Dates YYYY-MM-DD; end defaults to start.",
+      "Prepare (NOT save) a booking; user confirms. tasking = DEPLOYED, servicing/maintenance = UNAVAILABLE, other = no change. Dates YYYY-MM-DD.",
     input_schema: {
       type: "object",
       properties: {
@@ -161,7 +158,7 @@ function pickProvider() {
       kind: "openai",
       key: env.GROQ_API_KEY,
       base: "https://api.groq.com/openai/v1",
-      model: env.AI_MODEL || "openai/gpt-oss-120b",
+      models: env.AI_MODEL ? [env.AI_MODEL, ...GROQ_MODELS.filter((m) => m !== env.AI_MODEL)] : GROQ_MODELS,
       label: "AI (Groq, free tier)",
     };
   }
@@ -178,46 +175,98 @@ const aiError = (status) => {
   return err;
 };
 
+// The instructions for Groq / OpenAI-style services. Kept SHORT on purpose:
+// Groq's free tier allows only ~8,000 tokens a minute, so the user guide is
+// not sent every time - the model asks for the part it needs (help_guide tool).
 const systemText = ({ user, today, page }) =>
-  "You are the help assistant inside the Fleet Admin Dashboard, a web app that tracks military fleet vehicle " +
-  "serviceability (Singapore, SAF transport). Answer in short, plain English with concrete steps (page names and button " +
-  "labels exactly as in the guide). Use the tools for any question about actual vehicles, counts or bookings - never guess data. " +
-  "When the user asks to add, change or book something, look the vehicle(s) up, then call the propose_* tools; the app then " +
-  "shows each change as a card with Confirm / Cancel. Never say a change is saved: say it is ready to confirm. " +
-  "You cannot delete vehicles, change accounts, passwords, disregards or criteria - explain which page does that instead. " +
-  "If a request is ambiguous (which vehicle? which value?), ask one short question. Keep data answers compact (lists, counts). " +
-  "Use simple formatting only: **bold** and '- ' bullet lines, no tables.\n\n" +
-  HELP_GUIDE +
-  `\n\nToday is ${today}. The user is ${user.name} (${ROLES[user.role] ?? user.role}). ` +
-  (user.role === "admin"
-    ? "As Admin they can see every vehicle and every page."
-    : "As a Fleet Commander they only see their own vehicles; Admin-only pages are Accounts, NC Dashboard, Manage Criteria and Import from Excel.") +
-  (page ? ` They are on the page: ${page}.` : "");
+  "You are the assistant in the Fleet Admin Dashboard (SAF transport fleet serviceability web app, Singapore). " +
+  "Status: AVAILABLE; DEPLOYED (out on TASKING / SELF DRIVE / TLOAN / OVERSEAS or a tasking booking); UNAVAILABLE (VOR STATUS has X, " +
+  "STANDBY or another blocked field has text, a Y/N maintenance item is N, or a servicing booking today). " +
+  "Rules: use tools for ANY fleet data, never guess. For how-to questions call help_guide and answer with exact page and button names. " +
+  "For changes or bookings call the propose_* tools; the user must press Confirm on each card, so say it is ready to confirm, never saved. " +
+  "You cannot delete vehicles or change accounts, disregards or criteria. Ask one short question if unclear. " +
+  "Answer briefly; use **bold** and '- ' bullets, no tables. " +
+  `Guide sections: ${guideTitles().join("; ")}. ` +
+  `Today is ${today}. User: ${user.name}, ${ROLES[user.role] ?? user.role}` +
+  (user.role === "admin" ? " (sees everything)." : " (sees only own vehicles; no Admin pages).") +
+  (page ? ` Current page: ${page}.` : "");
+
+const HELP_TOOL = {
+  name: "help_guide",
+  description: "Get a section of the app's user guide (how to use a page or feature).",
+  input_schema: {
+    type: "object",
+    properties: { topic: { type: "string", description: "Section title or keywords, e.g. 'Calendar', 'Importing Excel', 'Edit Blocked Vehicles'" } },
+    required: ["topic"],
+  },
+};
+
+// Groq models to try in order. Each has its own free per-minute allowance,
+// so when one is busy the next one answers.
+const GROQ_MODELS = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"];
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // OpenAI-style chat completions with tool calls (Groq, and most other services)
 async function runOpenAI({ provider, user, today, history, tools, page }) {
+  const models = provider.models ?? [provider.model];
+  let lastErr;
+  for (const model of models) {
+    try {
+      return await runOpenAIModel({ provider, model, user, today, history, tools, page });
+    } catch (err) {
+      lastErr = err;
+      if (!err.quota) throw err; // a wrong key won't get better with another model
+      console.error(`[assistant] ${model} is busy (${err.message}) - trying the next model`);
+      tools.actions.length = 0;
+    }
+  }
+  throw lastErr;
+}
+
+async function runOpenAIModel({ provider, model, user, today, history, tools, page }) {
   const messages = [{ role: "system", content: systemText({ user, today, page }) }, ...history];
-  const fnTools = tools.list.map((t) => ({
+  const fnTools = [HELP_TOOL, ...tools.list].map((t) => ({
     type: "function",
     function: { name: t.name, description: t.description, parameters: t.input_schema },
   }));
+  const handlers = { ...tools.handlers, help_guide: ({ topic }) => ({ text: guideSection(topic) }) };
+
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
-    const res = await fetch(`${provider.base.replace(/\/+$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${provider.key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...(provider.model ? { model: provider.model } : {}),
-        messages,
-        tools: fnTools,
-        tool_choice: "auto",
-        temperature: 0.2,
-        max_tokens: 1500,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
+    let res;
+    let data;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      res = await fetch(`${provider.base.replace(/\/+$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${provider.key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(model ? { model } : {}),
+          messages,
+          tools: fnTools,
+          tool_choice: "auto",
+          temperature: 0.2,
+          max_tokens: 700,
+        }),
+      });
+      data = await res.json().catch(() => ({}));
+      // busy for a few seconds only: wait and try once more
+      const wait = Number(res.headers.get("retry-after"));
+      if (res.status === 429 && attempt === 0 && wait > 0 && wait <= 6) {
+        await sleep(wait * 1000);
+        continue;
+      }
+      break;
+    }
     if (!res.ok) {
-      console.error("[assistant]", res.status, data?.error?.message);
-      throw aiError(res.status);
+      const message = String(data?.error?.message ?? "");
+      console.error("[assistant]", model, res.status, message);
+      const err = aiError(res.status);
+      // too many tokens / requests for this model right now -> try another model
+      err.quota = res.status === 429 || res.status === 413 || /rate limit|tokens per|too large/i.test(message);
+      // a model that can't call tools properly -> try another model
+      if (res.status === 400 && /tool|function/i.test(message)) err.quota = true;
+      err.message = message.slice(0, 160) || err.message;
+      throw err;
     }
     const msg = data.choices?.[0]?.message ?? {};
     const calls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
@@ -233,12 +282,13 @@ async function runOpenAI({ provider, user, today, history, tools, page }) {
       let result;
       try {
         const args = JSON.parse(call.function?.arguments || "{}");
-        const handler = tools.handlers[call.function?.name];
+        const handler = handlers[call.function?.name];
         result = handler ? handler(args) : { error: `Unknown tool ${call.function?.name}` };
       } catch (err) {
         result = { error: err instanceof SyntaxError ? "The tool input wasn't valid JSON." : "That lookup failed." };
       }
-      messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result).slice(0, 30_000) });
+      // keep tool results small (free tier token limit)
+      messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result).slice(0, 9000) });
     }
   }
   return { reply: "Sorry, I couldn't work that out.", actions: tools.actions };
@@ -288,7 +338,7 @@ export function assistantRoutes(ctx) {
       const out = builtin();
       return {
         ...out,
-        reply: `(The AI service isn't answering right now${err.quota ? " - the free quota may be used up for now" : ""}, so this is the built-in assistant.)\n\n${out.reply}`,
+        reply: `(The AI is ${err.quota ? "busy (free limit reached for this minute)" : "not answering"} - built-in answer:)\n\n${out.reply}`,
         mode: "Built-in",
       };
     }
@@ -427,7 +477,7 @@ export function assistantRoutes(ctx) {
             [v.mid, v.type, v.remarks, ...Object.values(v.blocks ?? {}).map((b) => b?.value)].some((x) => String(x ?? "").toUpperCase().includes(q))
           );
         }
-        const max = Math.min(Math.max(Number(limit) || 40, 1), 200);
+        const max = Math.min(Math.max(Number(limit) || 25, 1), 100);
         return { found: rows.length, shown: Math.min(rows.length, max), vehicles: rows.slice(0, max).map(({ v }) => brief(v)) };
       },
 

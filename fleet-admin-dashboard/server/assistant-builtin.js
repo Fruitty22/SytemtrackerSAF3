@@ -39,6 +39,15 @@ const SECTIONS = (() => {
   return out.map((s) => ({ ...s, text: s.lines.join("\n"), words: new Set(words(`${s.title} ${s.title} ${s.lines.join(" ")}`)) }));
 })();
 
+// For the AI: the guide's section titles, and one section by (part of) its title or keywords
+export const guideTitles = () => SECTIONS.map((x) => x.title);
+export function guideSection(topic) {
+  const t = String(topic ?? "").toLowerCase().trim();
+  const byTitle = SECTIONS.find((x) => x.title.toLowerCase().includes(t)) ?? SECTIONS.find((x) => t.includes(x.title.toLowerCase().split(/[ (:]/)[0]));
+  if (byTitle) return `${byTitle.title}\n${byTitle.text}`;
+  return helpAnswer(t) ?? `No guide section for "${topic}". Sections: ${guideTitles().join("; ")}`;
+}
+
 function helpAnswer(question) {
   const q = words(question);
   if (!q.length) return null;
@@ -281,13 +290,17 @@ export function runBuiltin({ question, tools, today, user }) {
   const typeHit = matchType(text, h);
   const status = /\b(unavailable|not available|not ava|down|unserviceable|u\/s|broken|can'?t (be )?(used|deploy))\b/i.test(lower)
     ? "unavailable"
-    : /\b(deployed|on tasking|tasking|out|in use|self drive|tloan|overseas)\b/i.test(lower) && /\b(which|list|show|who|what|how many|vehicles?)\b/i.test(lower)
+    : /\b(deployed|in use|out on)\b/i.test(lower)
       ? "deployed"
-      : /\b(available|serviceable|ava|free|ready)\b/i.test(lower) && /\b(which|list|show|how many|vehicles?|what)\b/i.test(lower)
+      : /\b(available|serviceable|ava|free|ready)\b/i.test(lower) && !/\bnot\b/i.test(lower)
         ? "available"
         : null;
   const reasonField = fields[0]?.name;
-  const isData = /\b(how many|count|number of|total|summary|overview|readiness|status|which|list|show|who|what'?s? (is )?(down|out))\b/i.test(lower);
+  const isData =
+    /\b(how many|count|number of|total|summary|overview|readiness|status|which|list|show|who|what'?s? (is )?(down|out)|give|get|find|search|display|tell me|all|any|every|those|vehicles? (on|with|that|in))\b/i.test(lower) ||
+    // just naming a field or type: "overseas vehicles", "6 TON GS", "standby?"
+    (fields.length > 0 && !CHANGE.test(lower)) ||
+    (typeHitEarly(text, h) && text.split(/\s+/).length <= 6);
 
   if (isData && (status || typeHit || reasonField) && !/\bhow (do|can|to)\b/i.test(lower)) {
     if (/\b(how many|count|number of|total)\b/i.test(lower) && !reasonField && !/\b(which|list|show)\b/i.test(lower)) {
@@ -421,6 +434,10 @@ function valueAfter(text, f, fields) {
   return raw.toUpperCase().slice(0, 100);
 }
 
+function typeHitEarly(text, h) {
+  return !!matchType(text, h);
+}
+
 function matchType(text, h) {
   const types = [...new Set(h.search_vehicles({ limit: 200 }).vehicles.map((v) => v.type))];
   const all = h.fleet_summary({}).perType ? Object.keys(h.fleet_summary({}).perType) : types;
@@ -453,7 +470,8 @@ function summaryText(s, type, status) {
   return lines.join("\n");
 }
 
-function listText(list, label) {
+function listText(list, rawLabel) {
+  const label = /^with\b/.test(rawLabel) ? `vehicles ${rawLabel}` : rawLabel;
   if (!list.found) return `No ${label} found.`;
   const lines = [`**${list.found}** ${label}${list.found > list.shown ? ` (first ${list.shown})` : ""}:`];
   for (const v of list.vehicles) {
