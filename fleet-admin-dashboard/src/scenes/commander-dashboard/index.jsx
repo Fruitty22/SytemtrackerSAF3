@@ -16,12 +16,14 @@ import {
 import Header from "../../components/Header";
 import StatBox from "../../components/StatBox";
 import { LevelChip } from "../../components/Chips";
+import { TaskingGroups } from "../../components/TaskingViews";
+import { ShowMoreButtons, useShowMore } from "../../components/ShowMore";
 import { tokens } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
 import { useVehicles } from "../../data/VehiclesContext";
 import { byMid, levelInfo, managedBy } from "../../utils/vehicle";
 import { DEPLOY_LABELS, UNASSIGNED } from "../../../shared/config.js";
-import { hasBlockRecord } from "../../../shared/deployability.js";
+import { hasBlockRecord, reasonText } from "../../../shared/deployability.js";
 
 const ALL = "ALL";
 
@@ -29,10 +31,15 @@ const ALL = "ALL";
 function summarise(list, deployOf) {
   const total = list.length;
   const ava = list.filter((v) => deployOf(v).ava).length;
+  const count = (status) => list.filter((v) => deployOf(v).status === status).length;
   return {
     total,
     ava,
     notAva: total - ava,
+    deployed: count("deployed"),
+    unavailable: count("unavailable"),
+    // vehicles out on a (counted) TASKING
+    tasking: list.filter((v) => deployOf(v).tasking).length,
     blocked: list.filter(hasBlockRecord).length,
     // vehicles with a counted maintenance item at N (what needs fixing)
     issues: list.filter((v) => deployOf(v).reasons.some((r) => r.kind === "maintenance")).length,
@@ -55,6 +62,29 @@ const Panel = ({ title, count, children }) => {
       </Typography>
       <Box sx={{ overflowX: "auto" }}>{children}</Box>
     </Box>
+  );
+};
+
+// Long tables show 10 rows at first, then "+10 more" / "Show all" / "Show less".
+// (Drawing hundreds of rows at once is what made this page slow to open on phones.)
+const LimitedRows = ({ items, colSpan, children }) => {
+  const state = useShowMore(items.length, 10);
+  return (
+    <>
+      {items.slice(0, state.limit).map(children)}
+      {(state.hidden > 0 || state.expanded) && (
+        <TableRow>
+          <TableCell colSpan={colSpan} sx={{ borderBottom: 0 }}>
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+              <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                Showing {state.limit} of {items.length}
+              </Typography>
+              <ShowMoreButtons state={state} />
+            </Box>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
   );
 };
 
@@ -86,6 +116,7 @@ const SummaryTable = ({ rows, firstColumn }) => (
         <TableCell>{firstColumn}</TableCell>
         <TableCell align="right">Total</TableCell>
         <TableCell align="right">{DEPLOY_LABELS.yes}</TableCell>
+        <TableCell align="right">{DEPLOY_LABELS.deployed}</TableCell>
         <TableCell align="right">{DEPLOY_LABELS.no}</TableCell>
         <TableCell align="right">Blocked</TableCell>
         <TableCell align="right">Need maintenance</TableCell>
@@ -98,7 +129,8 @@ const SummaryTable = ({ rows, firstColumn }) => (
           <TableCell sx={{ fontWeight: 700 }}>{r.label}</TableCell>
           <TableCell align="right">{r.total}</TableCell>
           <TableCell align="right">{r.ava}</TableCell>
-          <TableCell align="right">{r.notAva}</TableCell>
+          <TableCell align="right">{r.deployed}</TableCell>
+          <TableCell align="right">{r.unavailable}</TableCell>
           <TableCell align="right">{r.blocked}</TableCell>
           <TableCell align="right">{r.issues}</TableCell>
           <TableCell>
@@ -150,12 +182,16 @@ const CommanderDashboard = ({ fleetWide = false }) => {
     return rows.filter((r) => r.total > 0);
   }, [view, users, vehicles, deployOf]);
 
-  const notAva = mine.filter((v) => !deployOf(v).ava);
-  const blocked = mine.filter(hasBlockRecord);
-  const itemsN = mine.flatMap((v) =>
-    Object.entries(v.maintenance ?? {})
-      .filter(([, entry]) => levelInfo(entry.level).problem)
-      .map(([field, entry]) => ({ vehicle: v, field, ...entry }))
+  const notAva = useMemo(() => mine.filter((v) => !deployOf(v).ava), [mine, deployOf]);
+  const blocked = useMemo(() => mine.filter(hasBlockRecord), [mine]);
+  const itemsN = useMemo(
+    () =>
+      mine.flatMap((v) =>
+        Object.entries(v.maintenance ?? {})
+          .filter(([, entry]) => levelInfo(entry.level).problem)
+          .map(([field, entry]) => ({ vehicle: v, field, ...entry }))
+      ),
+    [mine]
   );
 
   const showOwner = isAdmin && (view === ALL || view === UNASSIGNED);
@@ -169,7 +205,7 @@ const CommanderDashboard = ({ fleetWide = false }) => {
           : users.find((u) => u.id === view)?.name ?? "...";
 
   return (
-    <Box sx={{ m: "20px" }}>
+    <Box sx={{ m: { xs: "12px", sm: "20px" } }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 2 }}>
         <Header title={fleetWide ? "NC DASHBOARD" : "FLEET COMMANDER DASHBOARD"} subtitle={viewName} />
         {canPick && (
@@ -210,7 +246,14 @@ const CommanderDashboard = ({ fleetWide = false }) => {
           hint={stats.total ? `${stats.readiness}% ready` : undefined}
           color={theme.palette.success.main}
         />
-        <StatBox label={DEPLOY_LABELS.no} value={stats.notAva} color={theme.palette.error.main} />
+        <StatBox
+          label={DEPLOY_LABELS.deployed}
+          value={stats.deployed}
+          hint="tasking, self drive, TLOAN, overseas"
+          color={theme.palette.info.main}
+        />
+        <StatBox label="On tasking" value={stats.tasking} color={theme.palette.info.dark} />
+        <StatBox label={DEPLOY_LABELS.no} value={stats.unavailable} color={theme.palette.error.main} />
         <StatBox label="Blocked" value={stats.blocked} color={theme.palette.error.dark} />
         <StatBox label="Need maintenance (item N)" value={stats.issues} color={theme.palette.warning.main} />
       </Box>
@@ -228,6 +271,10 @@ const CommanderDashboard = ({ fleetWide = false }) => {
             </Panel>
           )}
 
+          <Panel title="On tasking" count={stats.tasking}>
+            <TaskingGroups vehicles={mine} showOwner={showOwner} />
+          </Panel>
+
           <Panel title="By vehicle type" count={byType.length}>
             <SummaryTable rows={byType} firstColumn="Vehicle type" />
           </Panel>
@@ -240,7 +287,7 @@ const CommanderDashboard = ({ fleetWide = false }) => {
               alignItems: "start",
             }}
           >
-            <Panel title={DEPLOY_LABELS.no} count={notAva.length}>
+            <Panel title="Not available" count={notAva.length}>
               {notAva.length === 0 ? (
                 <Empty>Every vehicle is {DEPLOY_LABELS.yes}.</Empty>
               ) : (
@@ -254,15 +301,14 @@ const CommanderDashboard = ({ fleetWide = false }) => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {notAva.map((v) => (
+                    <LimitedRows key={view} items={notAva} colSpan={showOwner ? 4 : 3}>
+                    {(v) => (
                       <TableRow key={v.id}>
                         <TableCell sx={{ fontWeight: 700 }}>{v.mid}</TableCell>
                         <TableCell>{v.type}</TableCell>
                         {showOwner && <TableCell>{v.ownerName}</TableCell>}
                         <TableCell>
-                          {deployOf(v)
-                            .reasons.map((r) => `${r.field}: ${r.value}`)
-                            .join(", ")}
+                          {deployOf(v).reasons.map(reasonText).join(", ")}
                           {v.statusRemark && (
                             <Typography variant="caption" component="div" sx={{ opacity: 0.7 }}>
                               {v.statusRemark}
@@ -270,7 +316,8 @@ const CommanderDashboard = ({ fleetWide = false }) => {
                           )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )}
+                    </LimitedRows>
                   </TableBody>
                 </Table>
               )}
@@ -290,7 +337,8 @@ const CommanderDashboard = ({ fleetWide = false }) => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {blocked.map((v) => (
+                    <LimitedRows key={view} items={blocked} colSpan={showOwner ? 4 : 3}>
+                    {(v) => (
                       <TableRow key={v.id}>
                         <TableCell sx={{ fontWeight: 700 }}>{v.mid}</TableCell>
                         <TableCell>{v.type}</TableCell>
@@ -301,7 +349,8 @@ const CommanderDashboard = ({ fleetWide = false }) => {
                             .join(", ")}
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )}
+                    </LimitedRows>
                   </TableBody>
                 </Table>
               )}
@@ -322,7 +371,8 @@ const CommanderDashboard = ({ fleetWide = false }) => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {itemsN.map((i) => (
+                    <LimitedRows key={view} items={itemsN} colSpan={showOwner ? 5 : 4}>
+                    {(i) => (
                       <TableRow key={`${i.vehicle.id}-${i.field}`}>
                         <TableCell sx={{ fontWeight: 700 }}>{i.vehicle.mid}</TableCell>
                         <TableCell>{i.field}</TableCell>
@@ -332,7 +382,8 @@ const CommanderDashboard = ({ fleetWide = false }) => {
                         {showOwner && <TableCell>{i.vehicle.ownerName}</TableCell>}
                         <TableCell>{i.remark || "-"}</TableCell>
                       </TableRow>
-                    ))}
+                    )}
+                    </LimitedRows>
                   </TableBody>
                 </Table>
               )}

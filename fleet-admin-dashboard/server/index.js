@@ -7,6 +7,11 @@ import os from "node:os";
 import path from "node:path";
 import { createApi } from "./api.js";
 
+// settings from .env.local / .env (SUPABASE_URL, ANTHROPIC_API_KEY...), if there
+for (const f of [".env.local", ".env"]) {
+  if (fs.existsSync(f) && process.loadEnvFile) process.loadEnvFile(f);
+}
+
 const PORT = Number(process.env.PORT) || 5000;
 const HOST = process.env.HOST || "0.0.0.0";
 const DIST = path.resolve(process.cwd(), "dist");

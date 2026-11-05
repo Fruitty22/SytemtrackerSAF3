@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   Alert,
@@ -19,6 +19,8 @@ import RefreshOutlinedIcon from "@mui/icons-material/RefreshOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import AssignmentIndOutlinedIcon from "@mui/icons-material/AssignmentIndOutlined";
+import TableRowsOutlinedIcon from "@mui/icons-material/TableRowsOutlined";
+import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 import Header from "../../components/Header";
 import StatBox from "../../components/StatBox";
 import ImportDialog from "../../components/ImportDialog";
@@ -26,6 +28,8 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import ClaimSheetDialog from "../../components/ClaimSheetDialog";
 import VehicleFilters, { EMPTY_FILTERS, filterVehicles } from "../../components/VehicleFilters";
 import useVehicleDialogs from "../../components/useVehicleDialogs";
+import FleetCalendar from "../../components/calendar/FleetCalendar";
+import VehicleDetailDialog from "../../components/VehicleDetailDialog";
 import { BlockedChip, DeployChip, ReasonChips } from "../../components/Chips";
 import { tokens } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
@@ -38,7 +42,7 @@ import {
   MAINTENANCE_FIELDS,
   UNASSIGNED,
 } from "../../../shared/config.js";
-import { hasBlockRecord } from "../../../shared/deployability.js";
+import { hasBlockRecord, reasonText, statusLabel } from "../../../shared/deployability.js";
 
 // DataGrid's selection model: { type: "include" | "exclude", ids: Set } in
 // MUI X v8+, or a plain array of ids in older versions. Handle both.
@@ -47,6 +51,30 @@ const selectedIdsOf = (model, allIds) => {
   if (Array.isArray(model)) return model;
   const ids = model?.ids ?? new Set();
   return model?.type === "exclude" ? allIds.filter((id) => !ids.has(id)) : [...ids];
+};
+
+// One table row per vehicle, built once per data change (not on every keystroke)
+const toRow = (v, deployOf) => ({
+  id: v.id,
+  mid: v.mid,
+  type: v.type,
+  deploy: statusLabel(deployOf(v).status),
+  blocked: hasBlockRecord(v) ? "BLOCKED" : "",
+  because: deployOf(v).reasons.map((r) => r.field).join(", "),
+  ownerName: v.ownerName,
+  remarks: v.remarks,
+  updatedAt: v.updatedAt,
+  vehicle: v,
+});
+
+// Table or Calendar, remembered on this device
+const VIEW_KEY = "fleet.vehiclesView";
+const readView = () => {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "calendar" ? "calendar" : "table";
+  } catch {
+    return "table";
+  }
 };
 
 const Vehicles = () => {
@@ -65,6 +93,16 @@ const Vehicles = () => {
   const { openCreate, openEdit, openDelete, dialogs } = useVehicleDialogs();
 
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [view, setViewState] = useState(readView);
+  const [detail, setDetail] = useState(null); // vehicle details dialog
+  const setView = (v) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* not remembered - fine */
+    }
+  };
 
   // scope = the vehicles of the chosen commander (the summary counts);
   // shown = scope after the filter bar (the table, selection and export)
@@ -75,7 +113,11 @@ const Vehicles = () => {
         .sort(byMid),
     [vehicles, ownerFilter]
   );
-  const shown = useMemo(() => filterVehicles(scope, filters, deployOf), [scope, filters, deployOf]);
+  const deferredFilters = useDeferredValue(filters);
+  const shown = useMemo(
+    () => filterVehicles(scope, deferredFilters, deployOf),
+    [scope, deferredFilters, deployOf]
+  );
 
   const selectedIds = useMemo(
     () => selectedIdsOf(selection, shown.map((v) => v.id)),
@@ -99,32 +141,18 @@ const Vehicles = () => {
   const stats = useMemo(
     () => ({
       total: scope.length,
-      ava: scope.filter((v) => deployOf(v).ava).length,
-      notAva: scope.filter((v) => !deployOf(v).ava).length,
+      available: scope.filter((v) => deployOf(v).status === "available").length,
+      deployed: scope.filter((v) => deployOf(v).status === "deployed").length,
+      unavailable: scope.filter((v) => deployOf(v).status === "unavailable").length,
       blocked: scope.filter((v) => hasBlockRecord(v)).length,
       // vehicles with a counted maintenance item at N (what needs fixing)
       issues: scope.filter((v) => deployOf(v).reasons.some((r) => r.kind === "maintenance")).length,
-      unassigned: scope.filter((v) => !v.managerIds?.length).length,
     }),
     [scope, deployOf]
   );
 
-  const rows = useMemo(
-    () =>
-      shown.map((v) => ({
-        id: v.id,
-        mid: v.mid,
-        type: v.type,
-        deploy: deployOf(v).ava ? DEPLOY_LABELS.yes : DEPLOY_LABELS.no,
-        blocked: hasBlockRecord(v) ? "BLOCKED" : "",
-        because: deployOf(v).reasons.map((r) => r.field).join(", "),
-        ownerName: v.ownerName,
-        remarks: v.remarks,
-        updatedAt: v.updatedAt,
-        vehicle: v,
-      })),
-    [shown, deployOf]
-  );
+  const rowById = useMemo(() => new Map(scope.map((v) => [v.id, toRow(v, deployOf)])), [scope, deployOf]);
+  const rows = useMemo(() => shown.map((v) => rowById.get(v.id)), [shown, rowById]);
 
   const columns = useMemo(
     () => [
@@ -144,7 +172,7 @@ const Vehicles = () => {
       },
       {
         field: "because",
-        headerName: "Not AVA because",
+        headerName: "Reason",
         flex: 1.5,
         minWidth: 220,
         renderCell: ({ row }) => <ReasonChips vehicle={row.vehicle} />,
@@ -190,12 +218,12 @@ const Vehicles = () => {
   // Everything, including each maintenance field, as one Excel sheet
   const exportToExcel = () => {
     const data = shown.map((v) => {
-      const { ava, reasons } = deployOf(v);
+      const { status, reasons } = deployOf(v);
       const row = {
         MID: v.mid,
         "VEHICLE TYPE": v.type,
-        DEPLOYABLE: ava ? DEPLOY_LABELS.yes : DEPLOY_LABELS.no,
-        BECAUSE: reasons.map((r) => `${r.field}: ${r.value}`).join(", "),
+        STATUS: statusLabel(status),
+        REASON: reasons.map(reasonText).join(", "),
       };
       if (isAdmin) {
         row["MANAGED BY"] = v.ownerName;
@@ -215,7 +243,7 @@ const Vehicles = () => {
   };
 
   return (
-    <Box sx={{ m: "20px" }}>
+    <Box sx={{ m: { xs: "12px", sm: "20px" } }}>
       <Header
         title="MANAGE VEHICLES"
         subtitle={isAdmin ? "Every vehicle in the fleet" : `Vehicles managed by ${user.name}`}
@@ -224,13 +252,11 @@ const Vehicles = () => {
       {/* SUMMARY */}
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: "16px", mb: "20px" }}>
         <StatBox label="Vehicles" value={stats.total} color={colors.blueAccent[400]} />
-        <StatBox label={DEPLOY_LABELS.yes} value={stats.ava} color={theme.palette.success.main} />
-        <StatBox label={DEPLOY_LABELS.no} value={stats.notAva} color={theme.palette.error.main} />
+        <StatBox label={DEPLOY_LABELS.yes} value={stats.available} color={theme.palette.success.main} />
+        <StatBox label={DEPLOY_LABELS.deployed} value={stats.deployed} color={theme.palette.error.main} />
+        <StatBox label={DEPLOY_LABELS.no} value={stats.unavailable} color={theme.palette.warning.main} />
         <StatBox label="Blocked" value={stats.blocked} color={theme.palette.error.dark} />
         <StatBox label="Need maintenance (item N)" value={stats.issues} color={theme.palette.warning.main} />
-        {isAdmin && stats.unassigned > 0 && (
-          <StatBox label="Unassigned" value={stats.unassigned} color={theme.palette.grey[500]} />
-        )}
       </Box>
 
       {/* ACTIONS */}
@@ -259,6 +285,25 @@ const Vehicles = () => {
           </TextField>
         )}
         <Box sx={{ flex: 1 }} />
+        <TextField
+          select
+          size="small"
+          label="View"
+          value={view}
+          onChange={(e) => setView(e.target.value)}
+          sx={{ minWidth: 150 }}
+        >
+          <MenuItem value="table">
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <TableRowsOutlinedIcon fontSize="small" /> Table
+            </Box>
+          </MenuItem>
+          <MenuItem value="calendar">
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <CalendarMonthOutlinedIcon fontSize="small" /> Calendar
+            </Box>
+          </MenuItem>
+        </TextField>
         <Button variant="contained" color="secondary" startIcon={<AddOutlinedIcon />} onClick={openCreate}>
           Add vehicle
         </Button>
@@ -311,7 +356,7 @@ const Vehicles = () => {
       )}
 
       {/* BULK ACTIONS (tick rows in the table) */}
-      {selectedIds.length > 0 && (
+      {view === "table" && selectedIds.length > 0 && (
         <Box
           sx={{
             display: "flex",
@@ -386,8 +431,12 @@ const Vehicles = () => {
         />
       </Box>
 
+      {/* CALENDAR (same vehicles as the table, after the filters) */}
+      {view === "calendar" && <FleetCalendar vehicles={shown} onEditVehicle={openEdit} />}
+
       {/* TABLE */}
-      <Box sx={{ height: "60vh", minHeight: 360, ...gridSx(colors) }}>
+      {view === "table" && (
+      <Box sx={{ height: "60vh", minHeight: 360, ...gridSx(colors), "& .MuiDataGrid-row": { cursor: "pointer" } }}>
         <DataGrid
           rows={rows}
           columns={columns}
@@ -399,12 +448,27 @@ const Vehicles = () => {
           disableRowSelectionOnClick
           rowSelectionModel={selection}
           onRowSelectionModelChange={setSelection}
-          onRowDoubleClick={({ row }) => openEdit(row.vehicle)}
+          // click a row for everything about the vehicle (not the tick box or the edit / delete buttons)
+          onCellClick={({ field, row }) => {
+            if (field === "__check__" || field === "actions") return;
+            setDetail(row.vehicle);
+          }}
           initialState={{ pagination: { paginationModel: { pageSize: 50 } } }}
           pageSizeOptions={[25, 50, 100]}
         />
       </Box>
+      )}
 
+      {detail && (
+        <VehicleDetailDialog
+          vehicle={detail}
+          onClose={() => setDetail(null)}
+          onEdit={(v) => {
+            setDetail(null);
+            openEdit(v);
+          }}
+        />
+      )}
       {dialogs}
       {importing && <ImportDialog onClose={() => setImporting(false)} />}
       {claiming && <ClaimSheetDialog onClose={() => setClaiming(false)} />}

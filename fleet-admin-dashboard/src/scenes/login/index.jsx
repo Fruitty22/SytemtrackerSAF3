@@ -13,6 +13,7 @@ const Login = () => {
 
   const [tab, setTab] = useState("login");
   const [isFirstAccount, setIsFirstAccount] = useState(false);
+  const [signupOpen, setSignupOpen] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [form, setForm] = useState(emptySignup);
@@ -22,7 +23,8 @@ const Login = () => {
   // with no accounts yet, open on "Sign up" (the first account becomes admin)
   useEffect(() => {
     api("/auth/status")
-      .then(({ hasUsers }) => {
+      .then(({ hasUsers, signupOpen: open }) => {
+        setSignupOpen(open !== false);
         if (!hasUsers) {
           setIsFirstAccount(true);
           setTab("signup");
@@ -98,7 +100,7 @@ const Login = () => {
           sx={{ mb: 3 }}
         >
           <Tab value="login" label="Log in" />
-          <Tab value="signup" label="Sign up" />
+          {signupOpen && <Tab value="signup" label="Sign up" />}
         </Tabs>
 
         {tab === "login" ? (

@@ -180,6 +180,7 @@ export const themeSettings = (mode) => {
       MuiCheckbox: { defaultProps: { color: "secondary" } },
       MuiRadio: { defaultProps: { color: "secondary" } },
       MuiSwitch: { defaultProps: { color: "secondary" } },
+      MuiTextField: { defaultProps: { color: "secondary" } },
     },
     typography: {
       fontFamily: ["Source Sans Pro", "sans-serif"].join(","),

@@ -6,7 +6,7 @@ const Placeholder = ({ title }) => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   return (
-    <Box sx={{ m: "20px" }}>
+    <Box sx={{ m: { xs: "12px", sm: "20px" } }}>
       <Header title={title.toUpperCase()} subtitle="Not built yet" />
       <Box
         sx={{

@@ -22,6 +22,7 @@ import { tokens } from "../../theme";
 import { useVehicles } from "../../data/VehiclesContext";
 import { formatDateTime, issueCount, recordCount } from "../../utils/vehicle";
 import { MAINTENANCE_FIELDS, MAINTENANCE_LEVELS } from "../../../shared/config.js";
+import { disregardsFor } from "../../../shared/deployability.js";
 
 // Pick fields (like "Select Fields" in Excel), give them a level, apply.
 // Each field's record can also be cleared on its own.
@@ -29,7 +30,7 @@ const MaintenanceEditor = ({ vehicle }) => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const { updateVehicle, disregards } = useVehicles();
-  const ignored = new Set(disregards[vehicle.type] ?? []);
+  const ignored = new Set(disregardsFor(disregards, vehicle.type));
   const records = vehicle.maintenance ?? {};
 
   const [selected, setSelected] = useState([]);

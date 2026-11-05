@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 import {
   Alert,
   Box,
@@ -14,6 +15,7 @@ import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import Header from "./Header";
+import { ShowMoreButtons, useShowMore } from "./ShowMore";
 import useVehicleDialogs from "./useVehicleDialogs";
 import { tokens } from "../theme";
 import { useAuth } from "../auth/AuthContext";
@@ -40,6 +42,20 @@ const VehicleWorkspace = ({ title, subtitle, filters, renderBadge, renderDetail,
   const [search, setSearch] = useState("");
   const [show, setShow] = useState(filters?.[0]?.value ?? "ALL");
   const [selectedId, setSelectedId] = useState(null);
+
+  // opened from a vehicle's details (…?vehicle=<id>): select that vehicle
+  const { search: urlQuery, pathname } = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const id = new URLSearchParams(urlQuery).get("vehicle");
+    const v = id && vehicles.find((x) => x.id === id);
+    if (!v) return;
+    setSelectedId(v.id);
+    setType("ALL");
+    setShow(filters?.[0]?.value ?? "ALL");
+    setSearch(v.mid);
+    navigate(pathname, { replace: true }); // tidy the address bar
+  }, [urlQuery, vehicles, pathname, navigate, filters]);
 
   const { openCreate, openEdit, openDelete, dialogs } = useVehicleDialogs({
     defaultType: type === "ALL" ? "" : type,
@@ -69,9 +85,11 @@ const VehicleWorkspace = ({ title, subtitle, filters, renderBadge, renderDetail,
   );
 
   const selected = vehicles.find((v) => v.id === selectedId) ?? null;
+  // only the first 50 are drawn (search / filter to find others, or "+50 more")
+  const listState = useShowMore(list.length, 50);
 
   return (
-    <Box sx={{ m: "20px" }}>
+    <Box sx={{ m: { xs: "12px", sm: "20px" } }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 2 }}>
         <Header title={title} subtitle={subtitle} />
         <Button variant="contained" color="secondary" startIcon={<AddOutlinedIcon />} onClick={openCreate}>
@@ -135,7 +153,7 @@ const VehicleWorkspace = ({ title, subtitle, filters, renderBadge, renderDetail,
               borderRadius: "4px",
             }}
           >
-            {list.map((v) => (
+            {list.slice(0, listState.limit).map((v) => (
               <ListItemButton
                 key={v.id}
                 selected={v.id === selectedId}
@@ -155,6 +173,14 @@ const VehicleWorkspace = ({ title, subtitle, filters, renderBadge, renderDetail,
                 {renderBadge?.(v)}
               </ListItemButton>
             ))}
+            {(listState.hidden > 0 || listState.expanded) && (
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center", p: 1.5 }}>
+                <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                  Showing {listState.limit} of {list.length}
+                </Typography>
+                <ShowMoreButtons state={listState} />
+              </Box>
+            )}
             {list.length === 0 && (
               <Typography sx={{ p: 2, color: colors.grey[300] }}>
                 {loading ? "Loading..." : vehicles.length === 0 ? "No vehicles yet. Add one, or import them on Manage Vehicles." : "No vehicles match."}

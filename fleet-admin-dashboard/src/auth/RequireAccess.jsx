@@ -9,7 +9,7 @@ const RequireAccess = ({ access, children }) => {
 
   if (!canOpen(user, access)) {
     return (
-      <Box sx={{ m: "20px" }}>
+      <Box sx={{ m: { xs: "12px", sm: "20px" } }}>
         <Typography variant="h3">No access</Typography>
         <Typography sx={{ mt: 1 }}>
           Your account doesn&rsquo;t have access to this page.

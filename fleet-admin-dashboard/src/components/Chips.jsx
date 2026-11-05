@@ -1,36 +1,35 @@
-import { Box, Chip, Tooltip } from "@mui/material";
+import { memo } from "react";
+import { Box, Chip } from "@mui/material";
+
+// Hover text uses the plain HTML title, not MUI's <Tooltip>: these chips appear
+// hundreds of times on a page and a Tooltip each made pages slow to open on phones.
 import { issueCount, levelInfo } from "../utils/vehicle";
 import { useVehicles } from "../data/VehiclesContext";
-import { DEPLOY_LABELS } from "../../shared/config.js";
-import { hasBlockRecord } from "../../shared/deployability.js";
+import { DEPLOYED_FIELDS } from "../../shared/config.js";
+import { hasBlockRecord, reasonText, statusLabel, STATUS_STYLE } from "../../shared/deployability.js";
 
-// AVA / NOT AVA, worked out from the blocked fields and maintenance items.
-// Hover to see why it's NOT AVA.
-export const DeployChip = ({ vehicle, ...props }) => {
+// AVAILABLE / DEPLOYED / UNAVAILABLE, worked out from the blocked fields and
+// maintenance items. Hover to see why it's not available.
+export const DeployChip = memo(({ vehicle, ...props }) => {
   const { deployOf } = useVehicles();
-  const { ava, reasons } = deployOf(vehicle);
-  const chip = (
+  const { status, reasons } = deployOf(vehicle);
+  return (
     <Chip
       size="small"
-      label={ava ? DEPLOY_LABELS.yes : DEPLOY_LABELS.no}
-      color={ava ? "success" : "error"}
+      label={statusLabel(status)}
+      color={STATUS_STYLE[status].color}
+      title={status === "available" ? undefined : `Because ${reasons.map(reasonText).join(", ")}`}
       {...props}
     />
   );
-  if (ava) return chip;
-  return (
-    <Tooltip title={`Because ${reasons.map((r) => `${r.field}: ${r.value}`).join(", ")}`}>
-      {chip}
-    </Tooltip>
-  );
-};
+});
 
 export const LevelChip = ({ level, ...props }) => (
   <Chip size="small" label={level} color={levelInfo(level).color} {...props} />
 );
 
 // Shown when any blocked-style field (TASKING, OVERSEAS...) has a value
-export const BlockedChip = ({ vehicle, ...props }) => {
+export const BlockedChip = memo(({ vehicle, ...props }) => {
   if (vehicle && !hasBlockRecord(vehicle)) return null;
   const fields = vehicle
     ? Object.entries(vehicle.blocks ?? {})
@@ -38,9 +37,8 @@ export const BlockedChip = ({ vehicle, ...props }) => {
         .map(([f, e]) => `${f}: ${e.value}`)
         .join(", ")
     : "";
-  const chip = <Chip size="small" label="BLOCKED" color="error" variant="outlined" {...props} />;
-  return fields ? <Tooltip title={fields}>{chip}</Tooltip> : chip;
-};
+  return <Chip size="small" label="BLOCKED" color="error" variant="outlined" title={fields || undefined} {...props} />;
+});
 
 // "2 × N" when maintenance items are N, nothing otherwise
 export const IssuesChip = ({ vehicle, ...props }) => {
@@ -50,36 +48,33 @@ export const IssuesChip = ({ vehicle, ...props }) => {
     .filter(([, e]) => levelInfo(e.level).problem)
     .map(([f]) => f)
     .join(", ");
-  return (
-    <Tooltip title={items}>
-      <Chip size="small" color="warning" label={`${issues} × N`} {...props} />
-    </Tooltip>
-  );
+  return <Chip size="small" color="warning" label={`${issues} × N`} title={items} {...props} />;
 };
 
 // What makes a vehicle NOT AVA, item by item: "AIRCON", "BII TOOL" (items marked N)
 // and "OVERSEAS: EX WALLABY" (blocked fields). Disregarded ones are left out,
 // so this always agrees with AVA / NOT AVA.
-export const ReasonChips = ({ vehicle }) => {
+export const ReasonChips = memo(({ vehicle }) => {
   const { deployOf } = useVehicles();
   const { reasons } = deployOf(vehicle);
   if (reasons.length === 0) return null;
-  const all = reasons
-    .map((r) => (r.kind === "maintenance" ? `${r.field} (N)` : `${r.field}: ${r.value}`))
-    .join(", ");
   return (
-    <Tooltip title={all}>
-      <Box sx={{ display: "flex", gap: 0.5, overflow: "hidden", alignItems: "center" }}>
-        {reasons.map((r) => (
+    <Box
+      title={reasons.map(reasonText).join(", ")}
+      sx={{ display: "flex", gap: 0.5, overflow: "hidden", alignItems: "center" }}
+    >
+      {reasons.map((r) => {
+        const deployed = r.kind === "block" && DEPLOYED_FIELDS.includes(r.field);
+        return (
           <Chip
-            key={r.field}
+            key={`${r.field}|${r.value}`}
             size="small"
-            color={r.kind === "maintenance" ? "warning" : "error"}
+            color={r.kind === "maintenance" ? "warning" : deployed ? "info" : "error"}
             variant={r.kind === "maintenance" ? "filled" : "outlined"}
-            label={r.kind === "maintenance" ? r.field : `${r.field}: ${r.value}`}
+            label={r.kind === "maintenance" ? r.field : reasonText(r)}
           />
-        ))}
-      </Box>
-    </Tooltip>
+        );
+      })}
+    </Box>
   );
-};
+});

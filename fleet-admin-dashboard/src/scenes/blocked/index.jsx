@@ -24,7 +24,7 @@ import { tokens } from "../../theme";
 import { useVehicles } from "../../data/VehiclesContext";
 import { formatDateTime } from "../../utils/vehicle";
 import { BLOCK_FIELDS } from "../../../shared/config.js";
-import { blocksVehicle, hasBlockRecord } from "../../../shared/deployability.js";
+import { blocksVehicle, disregardsFor, hasBlockRecord } from "../../../shared/deployability.js";
 
 const OTHER = "__other__";
 
@@ -35,7 +35,7 @@ const BlockEditor = ({ vehicle }) => {
   const colors = tokens(theme.palette.mode);
   const { vehicles, updateVehicle, disregards } = useVehicles();
   const records = vehicle.blocks ?? {};
-  const ignored = new Set(disregards[vehicle.type] ?? []);
+  const ignored = new Set(disregardsFor(disregards, vehicle.type));
 
   const [selected, setSelected] = useState([]);
   const [choice, setChoice] = useState("");

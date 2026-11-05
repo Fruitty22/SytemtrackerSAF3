@@ -9,6 +9,7 @@ import {
   ListItemIcon,
   ListItemText,
   Typography,
+  useMediaQuery,
   useTheme,
 } from "@mui/material";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
@@ -27,7 +28,7 @@ const initials = (name) =>
     .map((part) => part[0].toUpperCase())
     .join("");
 
-const Item = ({ title, to, icon: Icon, collapsed }) => {
+const Item = ({ title, to, icon: Icon, collapsed, onNavigate }) => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const { pathname } = useLocation();
@@ -37,6 +38,7 @@ const Item = ({ title, to, icon: Icon, collapsed }) => {
     <ListItemButton
       component={Link}
       to={to}
+      onClick={onNavigate}
       title={collapsed ? title : undefined}
       sx={{
         py: "5px",
@@ -71,17 +73,52 @@ const SectionTitle = ({ children, collapsed }) => {
   );
 };
 
+// The page links. Used by the desktop sidebar and by the phone drop-down menu.
+export const NavList = ({ collapsed = false, onNavigate }) => {
+  const { user } = useAuth();
+  return (
+    <List component="nav" disablePadding sx={{ pl: collapsed ? 0 : "10%" }}>
+      {navSections.map((section, index) => {
+        const items = section.items.filter((item) => canOpen(user, item.key));
+        if (items.length === 0) return null;
+        return (
+          <Box key={section.title ?? index}>
+            {section.title && <SectionTitle collapsed={collapsed}>{section.title}</SectionTitle>}
+            {items.map((item) => (
+              <Item
+                key={item.key}
+                title={item.title}
+                to={item.to}
+                icon={item.icon}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </Box>
+        );
+      })}
+    </List>
+  );
+};
+
+// Desktop / tablet only. On phones (below 900px) the Topbar's menu button
+// opens the same links as a drop-down panel instead.
 const Sidebar = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const { user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  // on phones the sidebar isn't drawn at all (not just hidden), so pages open faster
+  const isPhone = useMediaQuery(theme.breakpoints.down("md"), { noSsr: true });
+  if (isPhone) return null;
 
   return (
     <Box
       component="aside"
       sx={{
-        width: isCollapsed ? COLLAPSED_WIDTH : WIDTH,
+        display: { xs: "none", md: "block" },
+        // a bit narrower on small laptops / tablets in landscape
+        width: isCollapsed ? COLLAPSED_WIDTH : { md: 240, lg: WIDTH },
         flexShrink: 0,
         height: "100vh",
         position: "sticky",
@@ -150,28 +187,7 @@ const Sidebar = () => {
       )}
 
       {/* MENU (only the pages this account may open) */}
-      <List component="nav" disablePadding sx={{ pl: isCollapsed ? 0 : "10%" }}>
-        {navSections.map((section, index) => {
-          const items = section.items.filter((item) => canOpen(user, item.key));
-          if (items.length === 0) return null;
-          return (
-            <Box key={section.title ?? index}>
-              {section.title && (
-                <SectionTitle collapsed={isCollapsed}>{section.title}</SectionTitle>
-              )}
-              {items.map((item) => (
-                <Item
-                  key={item.key}
-                  title={item.title}
-                  to={item.to}
-                  icon={item.icon}
-                  collapsed={isCollapsed}
-                />
-              ))}
-            </Box>
-          );
-        })}
-      </List>
+      <NavList collapsed={isCollapsed} />
     </Box>
   );
 };

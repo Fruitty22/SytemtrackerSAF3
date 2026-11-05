@@ -21,7 +21,8 @@ import { deployability } from "../../../shared/deployability.js";
 
 // every criterion, with the gate it feeds (same order as the Excel form:
 // maintenance items first, then the blocked-style fields)
-const CRITERIA = [
+// (a function: the criteria list can change - see shared/criteria.js)
+const criteriaList = () => [
   ...MAINTENANCE_FIELDS.map((f) => ({ field: f, kind: "Maintenance" })),
   ...BLOCK_FIELDS.map((f) => ({ field: f.name, kind: "Blocked" })),
 ];
@@ -54,6 +55,7 @@ const Disregards = () => {
   }, [type, disregards]);
 
   const saved = disregards[type] ?? [];
+  const CRITERIA = criteriaList();
   const dirty = [...draft].sort().join("|") !== [...saved].sort().join("|");
   const toggle = (field) =>
     setDraft((list) => (list.includes(field) ? list.filter((f) => f !== field) : [...list, field]));
@@ -85,7 +87,7 @@ const Disregards = () => {
     .sort((a, b) => a[0].localeCompare(b[0]));
 
   return (
-    <Box sx={{ m: "20px" }}>
+    <Box sx={{ m: { xs: "12px", sm: "20px" } }}>
       <Header
         title="MANAGE DISREGARDS"
         subtitle={`Tick the criteria to IGNORE for each vehicle type. Ignored criteria never make it ${DEPLOY_LABELS.no}`}
@@ -181,7 +183,7 @@ const Disregards = () => {
           ) : (
             withRules.map(([t, list]) => (
               <Box key={t} sx={{ mb: 1.5 }}>
-                <Button size="small" onClick={() => setType(t)} sx={{ fontWeight: 700, px: 0 }}>
+                <Button size="small" onClick={() => setType(t)} sx={{ fontWeight: 700, px: 0, color: "text.primary", fontSize: 15  }}>
                   {t}
                 </Button>
                 <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>

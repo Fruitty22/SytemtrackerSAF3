@@ -11,6 +11,8 @@ import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined
 import SkipNextOutlinedIcon from "@mui/icons-material/SkipNextOutlined";
 import SpaceDashboardOutlinedIcon from "@mui/icons-material/SpaceDashboardOutlined";
 import RuleOutlinedIcon from "@mui/icons-material/RuleOutlined";
+import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
+import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 
 const EVERYONE = ["admin", "commander"];
 const ADMIN = ["admin"];
@@ -39,6 +41,13 @@ export const navSections = [
         roles: EVERYONE,
       },
       {
+        key: "tasking",
+        title: "Tasking",
+        to: "/tasking",
+        icon: AssignmentOutlinedIcon,
+        roles: EVERYONE, // who is out on what, and why the rest are not available
+      },
+      {
         key: "edit-maintenance",
         title: "Edit Maintenance Level",
         to: "/edit-maintenance",
@@ -65,6 +74,13 @@ export const navSections = [
         to: "/manage-disregards",
         icon: RuleOutlinedIcon,
         roles: EVERYONE, // per vehicle type: which criteria are ignored
+      },
+      {
+        key: "manage-criteria",
+        title: "Manage Criteria",
+        to: "/manage-criteria",
+        icon: FactCheckOutlinedIcon,
+        roles: ADMIN, // which columns count (the workbook's CriteriaConfig)
       },
     ],
   },

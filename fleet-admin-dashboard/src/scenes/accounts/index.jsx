@@ -346,7 +346,7 @@ const Accounts = () => {
   };
 
   return (
-    <Box sx={{ m: "20px" }}>
+    <Box sx={{ m: { xs: "12px", sm: "20px" } }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 2 }}>
         <Header title="ACCOUNTS" subtitle="Who can log in, and what they can see" />
         <Button

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -27,6 +27,7 @@ import { useVehicles } from "../../data/VehiclesContext";
 import { byMid } from "../../utils/vehicle";
 import { gridSx } from "../../utils/gridSx";
 import { DEPLOY_LABELS } from "../../../shared/config.js";
+import { statusLabel } from "../../../shared/deployability.js";
 
 // SERVICEABLE VEHICLE: a read-only overview of availability.
 // Filter, scan the table, click a vehicle to see why it's AVA / NOT AVA.
@@ -79,7 +80,7 @@ const GateTable = ({ title, rule, rows, tripped, type }) => (
 const LogicDialog = ({ vehicle, onClose }) => {
   const { deployOf } = useVehicles();
   const result = deployOf(vehicle);
-  const anyBlocked = result.blockRows.some((r) => r.blocks);
+  const anyBlocked = result.blockRows.some((r) => r.blocks) || result.scheduleRows.some((r) => r.blocks);
   const anyItemN = result.itemRows.some((r) => r.blocks);
   return (
     <Dialog open onClose={onClose} maxWidth="lg" fullWidth>
@@ -87,9 +88,9 @@ const LogicDialog = ({ vehicle, onClose }) => {
         {vehicle.mid} · {vehicle.type}
       </DialogTitle>
       <DialogContent dividers sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Alert severity={result.ava ? "success" : "error"} icon={false}>
+        <Alert severity={{ available: "success", deployed: "info", unavailable: "error" }[result.status]} icon={false}>
           <Typography variant="h4" sx={{ fontWeight: 700 }}>
-            {result.ava ? DEPLOY_LABELS.yes : DEPLOY_LABELS.no}
+            {statusLabel(result.status)}
           </Typography>
           <Typography>
             {result.ava
@@ -98,6 +99,15 @@ const LogicDialog = ({ vehicle, onClose }) => {
           </Typography>
           {vehicle.statusRemark && <Typography sx={{ mt: 0.5, opacity: 0.8 }}>Remark: {vehicle.statusRemark}</Typography>}
         </Alert>
+        {result.scheduleRows.length > 0 && (
+          <Alert severity="info" variant="outlined">
+            <strong>Calendar booking today:</strong>{" "}
+            {result.scheduleRows
+              .map((r) => `${r.field}: ${r.value} (${r.event.start === r.event.end ? r.event.start : `${r.event.start} to ${r.event.end}`})${r.counted ? "" : " - ignored"}`)
+              .join("; ")}
+            . It counts as a blocked field until the booking ends (Manage Vehicles → View: Calendar).
+          </Alert>
+        )}
         <Typography variant="body2" sx={{ opacity: 0.8 }}>
           {DEPLOY_LABELS.yes} = NOT ( ANY BLOCKED <strong>OR</strong> ANY ITEM = N ) &nbsp;·&nbsp; ANY BLOCKED ={" "}
           <strong>{String(anyBlocked).toUpperCase()}</strong> &nbsp;·&nbsp; ANY ITEM = N ={" "}
@@ -136,6 +146,18 @@ const LogicDialog = ({ vehicle, onClose }) => {
   );
 };
 
+// One table row per vehicle, built once per data change (not on every keystroke)
+const toRow = (v, deployOf) => ({
+  id: v.id,
+  mid: v.mid,
+  type: v.type,
+  deploy: statusLabel(deployOf(v).status),
+  because: deployOf(v).reasons.map((r) => r.field).join(", "),
+  ownerName: v.ownerName,
+  remark: v.statusRemark ?? "",
+  vehicle: v,
+});
+
 const Serviceable = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
@@ -144,36 +166,22 @@ const Serviceable = () => {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [viewing, setViewing] = useState(null);
 
+  const deferredFilters = useDeferredValue(filters);
   const shown = useMemo(
-    () => filterVehicles(vehicles, filters, deployOf).slice().sort(byMid),
-    [vehicles, filters, deployOf]
+    () => filterVehicles(vehicles, deferredFilters, deployOf).slice().sort(byMid),
+    [vehicles, deferredFilters, deployOf]
   );
-  const ava = shown.filter((v) => deployOf(v).ava).length;
+  const counts = useMemo(() => {
+    const c = { available: 0, deployed: 0, unavailable: 0 };
+    for (const v of shown) c[deployOf(v).status]++;
+    return c;
+  }, [shown, deployOf]);
+  const count = (status) => counts[status];
 
-  // AVA count per vehicle type (click one to filter by it)
-  const byType = useMemo(() => {
-    const map = new Map();
-    for (const v of vehicles) {
-      const entry = map.get(v.type) ?? { total: 0, ava: 0 };
-      entry.total += 1;
-      if (deployOf(v).ava) entry.ava += 1;
-      map.set(v.type, entry);
-    }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [vehicles, deployOf]);
+  const rowById = useMemo(() => new Map(vehicles.map((v) => [v.id, toRow(v, deployOf)])), [vehicles, deployOf]);
+  const rows = useMemo(() => shown.map((v) => rowById.get(v.id)), [shown, rowById]);
 
-  const rows = shown.map((v) => ({
-    id: v.id,
-    mid: v.mid,
-    type: v.type,
-    deploy: deployOf(v).ava ? DEPLOY_LABELS.yes : DEPLOY_LABELS.no,
-    because: deployOf(v).reasons.map((r) => r.field).join(", "),
-    ownerName: v.ownerName,
-    remark: v.statusRemark ?? "",
-    vehicle: v,
-  }));
-
-  const columns = [
+  const columns = useMemo(() => [
     { field: "mid", headerName: "MID", width: 110 },
     { field: "type", headerName: "Vehicle type", flex: 1, minWidth: 160 },
     {
@@ -184,20 +192,20 @@ const Serviceable = () => {
     },
     {
       field: "because",
-      headerName: "Not AVA because",
+      headerName: "Reason",
       flex: 1.6,
       minWidth: 240,
       renderCell: ({ row }) => <ReasonChips vehicle={row.vehicle} />,
     },
     ...(isAdmin ? [{ field: "ownerName", headerName: "Managed by", flex: 1, minWidth: 150 }] : []),
     { field: "remark", headerName: "Remark", flex: 1, minWidth: 140 },
-  ];
+  ], [isAdmin]);
 
   return (
-    <Box sx={{ m: "20px" }}>
+    <Box sx={{ m: { xs: "12px", sm: "20px" } }}>
       <Header
         title="SERVICEABLE VEHICLE"
-        subtitle={`Vehicle availability (${DEPLOY_LABELS.yes} / ${DEPLOY_LABELS.no}). Click a vehicle to see why.`}
+        subtitle="Vehicle availability at a glance. Click a vehicle to see why."
       />
 
       {error && (
@@ -206,31 +214,12 @@ const Serviceable = () => {
         </Alert>
       )}
 
-      {/* PER TYPE (click to filter) */}
-      {byType.length > 0 && (
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: "16px" }}>
-          {byType.map(([type, n]) => (
-            <Chip
-              key={type}
-              clickable
-              onClick={() => setFilters((f) => ({ ...f, type: f.type === type ? "ALL" : type }))}
-              label={`${type}   ${n.ava} / ${n.total} ${DEPLOY_LABELS.yes}`}
-              sx={{
-                backgroundColor: filters.type === type ? colors.blueAccent[700] : colors.primary[400],
-                fontWeight: 600,
-                borderLeft: `4px solid ${n.ava === n.total ? theme.palette.success.main : theme.palette.warning.main}`,
-                borderRadius: "4px",
-              }}
-            />
-          ))}
-        </Box>
-      )}
-
       {/* COUNTS FOR WHAT'S SHOWN */}
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: "16px", mb: "16px" }}>
         <StatBox label="Shown" value={shown.length} color={theme.palette.info.main} />
-        <StatBox label={DEPLOY_LABELS.yes} value={ava} color={theme.palette.success.main} />
-        <StatBox label={DEPLOY_LABELS.no} value={shown.length - ava} color={theme.palette.error.main} />
+        <StatBox label={DEPLOY_LABELS.yes} value={count("available")} color={theme.palette.success.main} />
+        <StatBox label={DEPLOY_LABELS.deployed} value={count("deployed")} color={theme.palette.info.main} />
+        <StatBox label={DEPLOY_LABELS.no} value={count("unavailable")} color={theme.palette.error.main} />
       </Box>
 
       <Box sx={{ mb: "12px" }}>
