@@ -127,10 +127,24 @@ export function fileStore(file) {
 
 // ---------------------------------------------------------------- Supabase
 
+// " https://abc.supabase.co/rest/v1/ " -> "https://abc.supabase.co"
+export function cleanSupabaseUrl(value) {
+  const text = String(value ?? "").trim().replace(/^["']|["']$/g, "").trim();
+  try {
+    const u = new URL(/^https?:\/\//i.test(text) ? text : `https://${text}`);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return text.replace(/\/+$/, "");
+  }
+}
+
 // Talks to Supabase's REST API with plain fetch(), so there is nothing extra to
 // install. The service-role key stays on the server; the browser never sees it.
 export function supabaseStore({ url, key, table = "fleet_store", fetchImpl = globalThis.fetch }) {
-  const base = `${url.replace(/\/+$/, "")}/rest/v1/${table}`;
+  // Accept the URL however it was copied: "https://x.supabase.co",
+  // ".../rest/v1/", with spaces or quotes around it - only the site part is used
+  const site = cleanSupabaseUrl(url);
+  const base = `${site}/rest/v1/${table}`;
   const headers = {
     apikey: key,
     // legacy service_role keys are JWTs and also go in Authorization;
@@ -158,8 +172,10 @@ export function supabaseStore({ url, key, table = "fleet_store", fetchImpl = glo
     const text = await res.text();
     if (!res.ok) {
       const hint =
-        res.status === 404 || /relation .* does not exist|Could not find the table/i.test(text)
+        /relation .* does not exist|Could not find the table|PGRST205|42P01/i.test(text)
           ? ` The table "${table}" doesn't exist yet: run supabase/schema.sql in the Supabase SQL editor.`
+          : /PGRST125|Invalid path/i.test(text)
+            ? ` Check SUPABASE_URL in Vercel: it should be just https://abcdefgh.supabase.co (now: ${site}).`
           : /permission denied|42501/i.test(text)
             ? ` In the Supabase SQL editor run: grant all on public.${table} to service_role;`
             : res.status === 401 || /invalid api key|jwt/i.test(text)
