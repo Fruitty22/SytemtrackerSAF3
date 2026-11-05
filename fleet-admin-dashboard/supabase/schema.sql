@@ -15,3 +15,5 @@ create table if not exists public.fleet_store (
 -- The public "anon" key and anyone on the internet get nothing.
 alter table public.fleet_store enable row level security;
 revoke all on public.fleet_store from anon, authenticated;
+-- the server's key (service_role / secret key) must be able to use it
+grant all on public.fleet_store to service_role;

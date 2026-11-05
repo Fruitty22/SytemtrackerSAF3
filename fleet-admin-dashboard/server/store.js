@@ -141,21 +141,42 @@ export function supabaseStore({ url, key, table = "fleet_store", fetchImpl = glo
   let cache = null; // { data, version } - reused while nobody else has saved
 
   async function call(method, query, body, prefer) {
-    const res = await fetchImpl(`${base}?${query}`, {
-      method,
-      headers: prefer ? { ...headers, Prefer: prefer } : headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    let res;
+    try {
+      res = await fetchImpl(`${base}?${query}`, {
+        method,
+        headers: prefer ? { ...headers, Prefer: prefer } : headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch (cause) {
+      console.error("[fleet-db] could not reach Supabase:", cause.message);
+      const err = new Error(`Database error: can't reach ${url} - check SUPABASE_URL (it should look like https://abcdefgh.supabase.co).`);
+      err.status = 503;
+      err.expose = true;
+      throw err;
+    }
     const text = await res.text();
     if (!res.ok) {
       const hint =
         res.status === 404 || /relation .* does not exist|Could not find the table/i.test(text)
           ? ` The table "${table}" doesn't exist yet: run supabase/schema.sql in the Supabase SQL editor.`
-          : "";
-      const err = new Error(`Database error (${res.status}).${hint}`);
+          : /permission denied|42501/i.test(text)
+            ? ` In the Supabase SQL editor run: grant all on public.${table} to service_role;`
+            : res.status === 401 || /invalid api key|jwt/i.test(text)
+              ? " The key is wrong: use the secret / service_role key in SUPABASE_SERVICE_ROLE_KEY, then redeploy."
+              : "";
+      // Supabase's own reason, e.g. "permission denied for table fleet_store"
+      let reason = "";
+      try {
+        const body = JSON.parse(text);
+        reason = [body.code, body.message || body.msg || body.error, body.hint].filter(Boolean).join(" - ");
+      } catch {
+        reason = text.slice(0, 200);
+      }
+      console.error(`[fleet-db] ${method} ${res.status}: ${reason}`);
+      const err = new Error(`Database error (${res.status}${reason ? `: ${reason.slice(0, 200)}` : ""}).${hint}`);
       err.status = 503;
       err.expose = true;
-      err.detail = text.slice(0, 300);
       throw err;
     }
     return text ? JSON.parse(text) : null;
