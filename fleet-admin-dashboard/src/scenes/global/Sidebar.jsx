@@ -41,7 +41,7 @@ const Item = ({ title, to, icon: Icon, collapsed, onNavigate }) => {
       onClick={onNavigate}
       title={collapsed ? title : undefined}
       sx={{
-        py: "3px",
+        py: "5px",
         pl: "20px",
         pr: collapsed ? "20px" : "35px",
         color: active ? "#6870fa" : colors.grey[100],
@@ -124,7 +124,7 @@ const Sidebar = () => {
         position: "sticky",
         top: 0,
         overflowX: "hidden",
-        overflowY: "hidden",
+        overflowY: "auto",
         backgroundColor: colors.primary[400],
         transition: theme.transitions.create("width", {
           duration: theme.transitions.duration.shorter,
