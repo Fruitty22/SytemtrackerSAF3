@@ -95,13 +95,6 @@ export const navSections = [
         roles: ADMIN,
       },
       {
-        key: "hide-unhide-sheets",
-        title: "Hide / Unhide Sheets",
-        to: "/hide-unhide-sheets",
-        icon: VisibilityOffOutlinedIcon,
-        roles: ADMIN,
-      },
-      {
         key: "next-day",
         title: "Next Day",
         to: "/next-day",
