@@ -27,7 +27,8 @@ import { themeSettings, tokens } from "../../theme";
 import { MAIN_NODE } from "../../../shared/nodes.js";
 import { useAuth } from "../../auth/AuthContext";
 import { api } from "../../api/client";
-import { LightUtilityVehicle, drift, noMotion, rise, roll } from "../../components/FleetVehicle";
+import { drift, noMotion, rise, roll } from "../../components/FleetVehicle";
+import { NodeVehicle } from "../../components/NodeVehicles";
 
 const emptySignup = { name: "", username: "", password: "", confirm: "" };
 
@@ -370,9 +371,9 @@ const Login = () => {
                 </Box>
               </Box>
 
-              {/* the vehicle stands on the road line (the road is positioned to match) */}
+              {/* each node's own vehicle (src/components/NodeVehicles.jsx) stands on the road line (the road is positioned to match) */}
               <Box sx={{ mb: "9px" }}>
-                <LightUtilityVehicle />
+                <NodeVehicle node={node?.key} />
               </Box>
             </Box>
 
