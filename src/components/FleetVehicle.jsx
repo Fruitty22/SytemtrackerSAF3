@@ -29,7 +29,9 @@ export const noMotion = { "@media (prefers-reduced-motion: reduce)": { animation
 const wheelSpinSx = {
   transformBox: "fill-box",
   transformOrigin: "center",
-  animation: `${spin} 1.8s linear infinite`,
+  // speed can be changed with the --wheel-speed CSS variable (the node picker's gear stick)
+  animation: `${spin} var(--wheel-speed, 1.8s) linear infinite`,
+  animationPlayState: "var(--wheel-play, running)",
   ...noMotion,
 };
 

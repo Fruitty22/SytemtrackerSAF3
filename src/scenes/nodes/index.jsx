@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Box, ButtonBase, Typography, alpha, useTheme } from "@mui/material";
 import ArgusBrand from "../../components/ArgusBrand";
 import ArgusMark, { NODE_LOGOS } from "../../components/ArgusMark";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import GearStick, { GEARS } from "../../components/GearStick";
 import { tokens } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
 import { NODES } from "../../../shared/nodes.js";
@@ -33,6 +35,16 @@ const NodePicker = () => {
   const accent = d.greenAccent[500];
   const { chooseNode } = useAuth();
 
+  // just for fun: a gear stick (N, 1-5) sets how fast the truck drives
+  const [gear, setGear] = useState(4);
+  const g = GEARS[gear];
+  const speedVars = {
+    "--road-speed": g.road ?? "1s",
+    "--wheel-speed": g.wheel ?? "1s",
+    "--road-play": g.road ? "running" : "paused",
+    "--wheel-play": g.wheel ? "running" : "paused",
+  };
+
   return (
     <Box
       sx={{
@@ -50,6 +62,7 @@ const NodePicker = () => {
     >
       <Box
         component="main"
+        style={speedVars}
         sx={{
           position: "relative",
           width: "100%",
@@ -99,7 +112,8 @@ const NodePicker = () => {
               backgroundImage: "linear-gradient(90deg, rgba(255,255,255,0.55) 30px, transparent 30px)",
               backgroundSize: "70px 100%",
               backgroundRepeat: "repeat-x",
-              animation: `${roll} 0.62s linear infinite`,
+              animation: `${roll} var(--road-speed, 0.62s) linear infinite`,
+              animationPlayState: "var(--road-play, running)",
               ...noMotion,
             },
           }}
@@ -146,7 +160,11 @@ const NodePicker = () => {
             </Box>
 
             {/* the 5-ton truck stands on the road line (hidden on small phones to keep the tiles in view) */}
-            <Box sx={{ display: { xs: "none", sm: "block" }, mb: "9px", maxWidth: { sm: 420, md: "none" } }}>
+            <Box sx={{ position: "relative", display: { xs: "none", sm: "block" }, mb: "9px", maxWidth: { sm: 420, md: "none" } }}>
+              {/* gear stick above the cab */}
+              <Box sx={{ position: "absolute", right: { sm: -8, md: 4 }, bottom: "100%", mb: 1.5 }}>
+                <GearStick gear={gear} onChange={setGear} />
+              </Box>
               <FiveTonTruck />
             </Box>
           </Box>
