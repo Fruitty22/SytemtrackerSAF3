@@ -36,7 +36,7 @@ const wheelSpinSx = {
 // r = tyre size; rim = gradient id; bolts = how many wheel nuts
 export const Wheel = ({ cx, cy = 168, r = 38, rim = "lv-rim", bolts = 5, tread = "7 5" }) => (
   <g>
-    <circle cx={cx} cy={cy} r={r} fill="#15171c" />
+    <circle className="tyre" cx={cx} cy={cy} r={r} fill="#15171c" />
     <circle cx={cx} cy={cy} r={r * 0.82} fill="none" stroke="#2a2e37" strokeWidth={2} />
     {/* the part that turns: tread blocks, rim, bolts */}
     <Box component="g" sx={wheelSpinSx}>

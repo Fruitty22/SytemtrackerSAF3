@@ -12,7 +12,16 @@ const Frame = ({ p, body, rim = ["#c8cdd5", "#8a919b"], glass = ["#bfd3e0", "#5a
     viewBox="0 0 560 220"
     aria-hidden="true"
     focusable="false"
-    sx={{ display: "block", width: "100%", height: "auto", overflow: "visible" }}
+    sx={{
+      display: "block",
+      width: "100%",
+      height: "auto",
+      overflow: "visible",
+      // the thick ink outline around the body panels and the tyres
+      "& .shell": { stroke: "#0a0c11", strokeWidth: 5, strokeLinejoin: "round", paintOrder: "stroke" },
+      "& .tyre": { stroke: "#06070a", strokeWidth: 4 },
+      "& .trim": { stroke: "#0a0c11", strokeWidth: 3, strokeLinejoin: "round" },
+    }}
   >
     <defs>
       <linearGradient id={`${p}-body`} x1="0" y1="0" x2="0" y2="1">
@@ -54,10 +63,10 @@ const arch = (cx, cy, r) => `M${cx - r} ${cy} A${r} ${r} 0 0 1 ${cx + r} ${cy} Z
 
 // ---------- KRANJI: OUV (7-seat off-road SUV) ----------
 export const OffRoadUtilityVehicle = () => (
-  <Frame p="ouv" body={["#7f8f6c", "#5e6f50", "#455339"]} beam={[508, 110]}>
+  <Frame p="ouv" body={["#f0cf98", "#d4a866", "#9f763f"]} beam={[508, 110]}>
     <path
       d="M44 150 L42 104 Q42 84 52 72 L64 54 Q70 46 80 46 L318 44 Q330 44 338 50 L386 90 Q390 93 396 94 L482 100 Q504 103 508 116 L512 150 Z"
-      fill="url(#ouv-body)"
+      fill="url(#ouv-body)" className="shell"
     />
     <path d="M64 54 Q70 46 80 46 L318 44 Q330 44 338 50 L386 90 Q390 93 396 94 L482 100" fill="none" stroke="#fff" strokeOpacity="0.28" strokeWidth="1.2" />
     {/* roof rails */}
@@ -85,8 +94,8 @@ export const OffRoadUtilityVehicle = () => (
     <rect x="488" y="136" width="28" height="15" rx="4" fill="#1b1e24" />
     <path d="M480 102 L508 108 L506 116 L478 112 Z" fill="#fff7dd" />
     {/* wheels */}
-    <path d={arch(130, 170, 45)} fill="#101216" />
-    <path d={arch(420, 170, 45)} fill="#101216" />
+    <path d={arch(130, 170, 45)} fill="#101216" className="trim" />
+    <path d={arch(420, 170, 45)} fill="#101216" className="trim" />
     <Wheel cx={130} cy={170} r={36} rim="ouv-rim" bolts={6} />
     <Wheel cx={420} cy={170} r={36} rim="ouv-rim" bolts={6} />
   </Frame>
@@ -94,12 +103,12 @@ export const OffRoadUtilityVehicle = () => (
 
 // ---------- MANDAI HILL: Land Rover 110 (boxy classic 4x4) ----------
 export const LandRover110 = () => (
-  <Frame p="lr" body={["#7a8a64", "#5d6c4a", "#465236"]} beam={[488, 112]} shadow={[264, 236]}>
+  <Frame p="lr" body={["#7fc07a", "#4f9449", "#2f6a2e"]} beam={[488, 112]} shadow={[264, 236]}>
     {/* roof rack */}
     <rect x="52" y="38" width="236" height="4" rx="2" fill="#23272b" />
     <path d="M64 41 V47 M170 41 V47 M276 41 V47" stroke="#23272b" strokeWidth="4" />
     {/* the box body, upright windscreen, flat bonnet */}
-    <path d="M40 150 V56 Q40 46 50 46 H298 Q305 46 306 52 L316 96 H476 Q486 96 486 106 V150 Z" fill="url(#lr-body)" />
+    <path d="M40 150 V56 Q40 46 50 46 H298 Q305 46 306 52 L316 96 H476 Q486 96 486 106 V150 Z" fill="url(#lr-body)" className="shell" />
     <path d="M40 56 Q40 46 50 46 H298 Q305 46 306 52 L316 96 H476" fill="none" stroke="#fff" strokeOpacity="0.28" strokeWidth="1.2" />
     {/* small "alpine" roof windows */}
     <rect x="64" y="49" width="40" height="5" rx="1.5" fill="url(#lr-glass)" />
@@ -127,10 +136,10 @@ export const LandRover110 = () => (
     <rect x="474" y="140" width="24" height="10" rx="2" fill="#1b1e24" />
     <rect x="36" y="140" width="16" height="10" rx="2" fill="#1b1e24" />
     {/* wheel flares (flat-topped) and wheels */}
-    <path d="M70 150 V128 Q70 120 78 120 H166 Q174 120 174 128 V150 Z" fill="#2c3326" />
-    <path d="M358 150 V128 Q358 120 366 120 H454 Q462 120 462 128 V150 Z" fill="#2c3326" />
-    <path d={arch(122, 170, 44)} fill="#101216" />
-    <path d={arch(410, 170, 44)} fill="#101216" />
+    <path d="M70 150 V128 Q70 120 78 120 H166 Q174 120 174 128 V150 Z" fill="#22262c" className="trim" />
+    <path d="M358 150 V128 Q358 120 366 120 H454 Q462 120 462 128 V150 Z" fill="#22262c" className="trim" />
+    <path d={arch(122, 170, 44)} fill="#101216" className="trim" />
+    <path d={arch(410, 170, 44)} fill="#101216" className="trim" />
     <Wheel cx={122} cy={170} r={36} rim="lr-rim" bolts={5} />
     <Wheel cx={410} cy={170} r={36} rim="lr-rim" bolts={5} />
   </Frame>
@@ -138,10 +147,10 @@ export const LandRover110 = () => (
 
 // ---------- LTC: electric saloon (smooth fastback, no grille) ----------
 export const ElectricSedan = () => (
-  <Frame p="ev" body={["#f4f6f9", "#d6dbe2", "#a9b1bc"]} rim={["#5a616b", "#2b3038"]} glass={["#43566b", "#141b24"]} beam={[506, 116]}>
+  <Frame p="ev" body={["#ff7b70", "#d93a33", "#8f1d1b"]} rim={["#5a616b", "#2b3038"]} glass={["#43566b", "#141b24"]} beam={[506, 116]}>
     <path
       d="M40 150 Q36 128 46 116 Q60 104 92 100 Q150 56 240 50 Q312 48 356 74 L392 96 Q470 104 500 116 Q514 122 512 138 L508 150 Z"
-      fill="url(#ev-body)"
+      fill="url(#ev-body)" className="shell"
     />
     <path d="M92 100 Q150 56 240 50 Q312 48 356 74 L392 96 Q470 104 500 116" fill="none" stroke="#fff" strokeOpacity="0.8" strokeWidth="1.2" />
     {/* one-piece tinted glass roof */}
@@ -157,8 +166,8 @@ export const ElectricSedan = () => (
     <path d="M478 108 L506 117 L505 121 L476 113 Z" fill="#fff7dd" />
     <rect x="46" y="142" width="460" height="8" rx="3" fill="#2b2f36" />
     {/* aero wheels */}
-    <path d={arch(136, 176, 38)} fill="#101216" />
-    <path d={arch(410, 176, 38)} fill="#101216" />
+    <path d={arch(136, 176, 38)} fill="#101216" className="trim" />
+    <path d={arch(410, 176, 38)} fill="#101216" className="trim" />
     <Wheel cx={136} cy={176} r={30} rim="ev-rim" bolts={5} tread="3 2" />
     <Wheel cx={410} cy={176} r={30} rim="ev-rim" bolts={5} tread="3 2" />
   </Frame>
@@ -166,10 +175,10 @@ export const ElectricSedan = () => (
 
 // ---------- HQ: luxury saloon (long, black, chrome) ----------
 export const LuxurySedan = () => (
-  <Frame p="lux" body={["#4a505a", "#22262c", "#0f1114"]} rim={["#e6e9ee", "#9aa2ad"]} glass={["#566a7d", "#1a222c"]} beam={[506, 114]}>
+  <Frame p="lux" body={["#5d74a8", "#26365e", "#0f172c"]} rim={["#e6e9ee", "#9aa2ad"]} glass={["#566a7d", "#1a222c"]} beam={[506, 114]}>
     <path
       d="M36 148 L38 118 Q40 108 52 106 L96 104 Q104 103 110 98 L160 64 Q168 58 180 58 H304 Q316 58 326 64 L380 98 Q386 102 396 102 L490 108 Q508 110 510 124 L512 148 Z"
-      fill="url(#lux-body)"
+      fill="url(#lux-body)" className="shell"
     />
     <path d="M52 106 L96 104 Q104 103 110 98 L160 64 Q168 58 180 58 H304 Q316 58 326 64 L380 98 Q386 102 396 102 L490 108" fill="none" stroke="#fff" strokeOpacity="0.35" strokeWidth="1.2" />
     {/* windows with chrome surround */}
@@ -190,8 +199,8 @@ export const LuxurySedan = () => (
     <path d="M503 117 H509 M503 122 H509 M503 127 H509 M503 132 H509" stroke="#2a2e35" strokeWidth="1.3" />
     <path d="M474 108 L502 112 L501 119 L472 116 Z" fill="#fff7dd" />
     {/* chrome multi-spoke wheels */}
-    <path d={arch(130, 175, 39)} fill="#08090b" />
-    <path d={arch(420, 175, 39)} fill="#08090b" />
+    <path d={arch(130, 175, 39)} fill="#08090b" className="trim" />
+    <path d={arch(420, 175, 39)} fill="#08090b" className="trim" />
     <Wheel cx={130} cy={175} r={31} rim="lux-rim" bolts={10} tread="3 2" />
     <Wheel cx={420} cy={175} r={31} rim="lux-rim" bolts={10} tread="3 2" />
   </Frame>
@@ -199,14 +208,14 @@ export const LuxurySedan = () => (
 
 // ---------- ALPHA: VAMTAC (high-mobility tactical 4x4) ----------
 export const TacticalVehicle = () => (
-  <Frame p="vt" body={["#78876a", "#59684b", "#414d36"]} rim={["#6d7a5d", "#424d38"]} beam={[498, 110]}>
+  <Frame p="vt" body={["#a9bccd", "#6f8599", "#46586a"]} rim={["#9aa6b2", "#5b6672"]} beam={[498, 110]}>
     {/* chassis */}
     <rect x="46" y="138" width="450" height="16" rx="4" fill="#1b1e24" />
     {/* body: hard-top rear, upright cab, long flat bonnet */}
-    <path d="M40 144 V62 Q40 50 52 50 H298 Q306 50 310 56 L336 96 H474 Q492 96 494 108 L498 144 Z" fill="url(#vt-body)" />
+    <path d="M40 144 V62 Q40 50 52 50 H298 Q306 50 310 56 L336 96 H474 Q492 96 494 108 L498 144 Z" fill="url(#vt-body)" className="shell" />
     <path d="M40 62 Q40 50 52 50 H298 Q306 50 310 56 L336 96 H474" fill="none" stroke="#fff" strokeOpacity="0.26" strokeWidth="1.2" />
     {/* roof hatch ring */}
-    <rect x="160" y="40" width="74" height="11" rx="3" fill="#2b3226" />
+    <rect x="160" y="40" width="74" height="11" rx="3" fill="#22262c" />
     <rect x="182" y="34" width="30" height="7" rx="2" fill="#1d2127" />
     {/* small armoured windows */}
     <rect x="168" y="62" width="56" height="30" rx="2" fill="url(#vt-glass)" stroke="#1d2127" strokeWidth="4" />
@@ -228,19 +237,19 @@ export const TacticalVehicle = () => (
     <rect x="494" y="134" width="14" height="8" rx="2" fill="#3a3f48" />
     <rect x="40" y="108" width="6" height="18" rx="2" fill="#d9413c" />
     {/* wide flat flares and big wheels */}
-    <path d="M70 144 V122 Q70 114 78 114 H170 Q178 114 178 122 V144 Z" fill="#2c3326" />
-    <path d="M358 144 V122 Q358 114 366 114 H458 Q466 114 466 122 V144 Z" fill="#2c3326" />
-    <path d={arch(124, 166, 47)} fill="#101216" />
-    <path d={arch(412, 166, 47)} fill="#101216" />
+    <path d="M70 144 V122 Q70 114 78 114 H170 Q178 114 178 122 V144 Z" fill="#22262c" className="trim" />
+    <path d="M358 144 V122 Q358 114 366 114 H458 Q466 114 466 122 V144 Z" fill="#22262c" className="trim" />
+    <path d={arch(124, 166, 47)} fill="#101216" className="trim" />
+    <path d={arch(412, 166, 47)} fill="#101216" className="trim" />
     <Wheel cx={124} cy={166} r={40} rim="vt-rim" bolts={8} tread="8 5" />
     <Wheel cx={412} cy={166} r={40} rim="vt-rim" bolts={8} tread="8 5" />
   </Frame>
 );
 
 // ---------- CHARLIE: Light Strike Vehicle (open-frame buggy) ----------
-const tube = { stroke: "#2c3327", strokeWidth: 6, strokeLinecap: "round", strokeLinejoin: "round", fill: "none" };
+const tube = { stroke: "#1d2127", strokeWidth: 8, strokeLinecap: "round", strokeLinejoin: "round", fill: "none" };
 export const LightStrikeVehicle = () => (
-  <Frame p="lsv" body={["#76866a", "#58684c", "#404c37"]} rim={["#6d7a5d", "#424d38"]} beam={[452, 120]} shadow={[264, 230]}>
+  <Frame p="lsv" body={["#ffb067", "#ee7a2c", "#b14f12"]} rim={["#c8cdd5", "#8a919b"]} beam={[452, 120]} shadow={[264, 230]}>
     {/* spare wheel on the back of the cage */}
     <circle cx="70" cy="86" r="26" fill="#15171c" />
     <circle cx="70" cy="86" r="14" fill="url(#lsv-rim)" />
@@ -249,7 +258,7 @@ export const LightStrikeVehicle = () => (
     <path d="M84 104 H130 M84 110 H130" stroke="#3a3f48" strokeWidth="2" />
     <path d="M78 100 Q66 96 62 108" stroke="#3a3f48" strokeWidth="5" fill="none" strokeLinecap="round" />
     {/* floor pan / tub */}
-    <path d="M60 150 L82 122 H424 L462 140 L468 150 Z" fill="url(#lsv-body)" />
+    <path d="M60 150 L82 122 H424 L462 140 L468 150 Z" fill="url(#lsv-body)" className="shell" />
     <path d="M82 122 H424 L462 140" fill="none" stroke="#fff" strokeOpacity="0.25" strokeWidth="1.2" />
     {/* seats */}
     <path d="M196 122 L202 82 Q204 74 212 76 L226 82 L222 122 Z" fill="#1d2127" />
@@ -274,20 +283,20 @@ export const LightStrikeVehicle = () => (
 
 // ---------- CSC: 10-ton recovery truck (tower) ----------
 export const RecoveryTruck = () => (
-  <Frame p="rec" body={["#7e8e6c", "#5d6e50", "#445237"]} rim={["#7d8a6c", "#4a5640"]} beam={[516, 128]}>
+  <Frame p="rec" body={["#ffe07a", "#f2b630", "#b07f0e"]} rim={["#c8cdd5", "#8a919b"]} beam={[516, 128]}>
     {/* chassis */}
     <rect x="22" y="146" width="494" height="14" rx="4" fill="#1b1e24" />
     {/* recovery boom with its ram, cable and hook */}
-    <path d="M148 96 L58 40" stroke="#4a5640" strokeWidth="14" strokeLinecap="round" />
-    <path d="M58 40 L28 22" stroke="#6b7a59" strokeWidth="9" strokeLinecap="round" />
+    <path d="M148 96 L58 40" stroke="#2a2e35" strokeWidth="16" strokeLinecap="round" />
+    <path d="M58 40 L28 22" stroke="#4a5059" strokeWidth="11" strokeLinecap="round" />
     <path d="M168 98 L112 64" stroke="#b9c0ca" strokeWidth="5" strokeLinecap="round" />
     <path d="M28 24 V92" stroke="#15171c" strokeWidth="2" />
     <path d="M28 92 Q20 92 20 100 Q20 108 28 108 Q34 108 34 102" fill="none" stroke="#c0392b" strokeWidth="4" strokeLinecap="round" />
-    <rect x="128" y="76" width="40" height="22" rx="4" fill="#2b3226" />
+    <rect x="128" y="76" width="40" height="22" rx="4" fill="#22262c" />
     {/* underlift arm at the back */}
-    <path d="M70 150 L22 156 L16 146" stroke="#2b3226" strokeWidth="8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M70 150 L22 156 L16 146" stroke="#22262c" strokeWidth="8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     {/* equipment body with lockers */}
-    <rect x="56" y="96" width="306" height="52" rx="3" fill="url(#rec-body)" />
+    <rect x="56" y="96" width="306" height="52" rx="3" fill="url(#rec-body)" className="shell" />
     <path d="M56 96 H362" stroke="#fff" strokeOpacity="0.25" strokeWidth="1.2" />
     {[66, 164, 262].map((x) => (
       <g key={x}>
@@ -299,9 +308,9 @@ export const RecoveryTruck = () => (
     <path d="M56 140 H72 V148 H56 Z" fill="#fff" />
     <path d="M56 140 L64 140 L56 148 Z M66 148 L72 142 V148 Z" fill="#c0392b" />
     {/* flat-fronted cab sitting over the engine */}
-    <path d="M372 150 V58 Q372 44 386 44 H488 Q500 44 504 56 L512 102 Q514 110 514 118 V150 Z" fill="url(#rec-body)" />
+    <path d="M372 150 V58 Q372 44 386 44 H488 Q500 44 504 56 L512 102 Q514 110 514 118 V150 Z" fill="url(#rec-body)" className="shell" />
     <path d="M372 58 Q372 44 386 44 H488 Q500 44 504 56 L512 102" fill="none" stroke="#fff" strokeOpacity="0.28" strokeWidth="1.2" />
-    <rect x="484" y="38" width="24" height="6" rx="2" fill="#2b3226" />
+    <rect x="484" y="38" width="24" height="6" rx="2" fill="#22262c" />
     {/* amber beacon */}
     <rect x="420" y="35" width="16" height="10" rx="3" fill="#ffb02e" />
     <circle cx="428" cy="38" r="12" fill="#ffb02e" opacity="0.35" filter="url(#rec-soft)" />
@@ -319,9 +328,9 @@ export const RecoveryTruck = () => (
     <rect x="498" y="138" width="26" height="14" rx="3" fill="#14161b" />
     <rect x="504" y="124" width="11" height="9" rx="2" fill="#fff7dd" />
     {/* wheels: one at the front, two at the back */}
-    <path d={arch(150, 172, 42)} fill="#101216" />
-    <path d={arch(232, 172, 42)} fill="#101216" />
-    <path d={arch(430, 172, 42)} fill="#101216" />
+    <path d={arch(150, 172, 42)} fill="#101216" className="trim" />
+    <path d={arch(232, 172, 42)} fill="#101216" className="trim" />
+    <path d={arch(430, 172, 42)} fill="#101216" className="trim" />
     <Wheel cx={150} cy={172} r={34} rim="rec-rim" bolts={8} tread="6 4" />
     <Wheel cx={232} cy={172} r={34} rim="rec-rim" bolts={8} tread="6 4" />
     <Wheel cx={430} cy={172} r={34} rim="rec-rim" bolts={8} tread="6 4" />
