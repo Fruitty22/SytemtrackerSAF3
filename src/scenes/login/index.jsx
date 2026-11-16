@@ -311,7 +311,7 @@ const Login = () => {
                 color: "#fff",
               }}
             >
-              <ArgusBrand size="lg" node={node?.key} />
+              <ArgusBrand size="xl" node={node?.key} />
 
               <Box>
                 <Typography sx={{ fontWeight: 800, fontSize: 40, lineHeight: 1.08, letterSpacing: "-0.01em" }}>
@@ -374,7 +374,7 @@ const Login = () => {
               }}
             >
               {/* name shows here only on phones (the left panel is hidden there) */}
-              <ArgusBrand size="md" node={node?.key} sx={{ display: { xs: "flex", md: "none" }, mb: 3 }} />
+              <ArgusBrand size="xl" stack node={node?.key} sx={{ display: { xs: "flex", md: "none" }, mb: 3, "& svg": { width: 128, height: 128 } }} />
 
               {/* which node this login is for */}
               {node && (

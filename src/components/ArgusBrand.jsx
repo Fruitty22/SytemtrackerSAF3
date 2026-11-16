@@ -10,17 +10,28 @@ export const ARGUS_CAPTION = "Eyes on every vehicle.";
 
 const SIZES = {
   //    badge, icon, name, caption, gap
+  xl: { badge: 104, icon: 40, name: 46, caption: 17, gap: 2.25 },
   lg: { badge: 60, icon: 28, name: 40, caption: 16, gap: 1.75 },
   md: { badge: 50, icon: 24, name: 34, caption: 15, gap: 1.5 },
   sm: { badge: 38, icon: 20, name: 28, caption: 12, gap: 1.1 },
   xs: { badge: 32, icon: 18, name: 24, caption: 11, gap: 0.9 },
 };
 
-const ArgusBrand = ({ size = "lg", node, color = "#fff", captionColor, badge = true, caption = true, sx }) => {
+// stack = logo on top, name centred under it (the login page on phones)
+const ArgusBrand = ({ size = "lg", node, color = "#fff", captionColor, badge = true, caption = true, stack = false, sx }) => {
   const d = tokens("dark");
   const s = SIZES[size] ?? SIZES.lg;
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: s.gap, minWidth: 0, ...sx }}>
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: s.gap,
+        minWidth: 0,
+        ...(stack && { flexDirection: "column", textAlign: "center", gap: 1.5 }),
+        ...sx,
+      }}
+    >
       {badge && <ArgusMark size={s.badge} node={node} />}
       <Box sx={{ minWidth: 0 }}>
         <Typography
