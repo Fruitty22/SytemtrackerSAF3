@@ -1,0 +1,43 @@
+@import url("https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap");
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  font-family: "Source Sans Pro", sans-serif;
+}
+
+/* min-height (not height) so the app grows with its content and the
+   sticky sidebar keeps working when the page scrolls */
+.app {
+  display: flex;
+  position: relative;
+  min-height: 100%;
+  width: 100%;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  font-family: "Source Sans Pro", sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #e0e0e0;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: #888;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
