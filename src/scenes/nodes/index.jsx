@@ -1,5 +1,5 @@
 import { Box, ButtonBase, Typography, alpha, useTheme } from "@mui/material";
-import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
+import ArgusBrand from "../../components/ArgusBrand";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { tokens } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
@@ -124,25 +124,7 @@ const NodePicker = () => {
             }}
           >
             <Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                <Box
-                  sx={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: "12px",
-                    display: "grid",
-                    placeItems: "center",
-                    background: `linear-gradient(135deg, ${d.blueAccent[500]}, ${d.greenAccent[600]})`,
-                    boxShadow: `0 6px 18px ${alpha(d.blueAccent[500], 0.45)}`,
-                    flexShrink: 0,
-                  }}
-                >
-                  <DirectionsCarOutlinedIcon />
-                </Box>
-                <Typography sx={{ fontWeight: 800, letterSpacing: "0.14em", fontSize: { xs: 16, sm: 18 } }}>
-                  FLEET MANAGEMENT
-                </Typography>
-              </Box>
+              <ArgusBrand size="lg" />
               <Typography
                 component="h1"
                 sx={{

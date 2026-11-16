@@ -19,7 +19,6 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
 import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
 import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
 import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
@@ -29,6 +28,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { api } from "../../api/client";
 import { drift, noMotion, rise, roll } from "../../components/FleetVehicle";
 import { NodeVehicle } from "../../components/NodeVehicles";
+import ArgusBrand from "../../components/ArgusBrand";
 
 const emptySignup = { name: "", username: "", password: "", confirm: "" };
 
@@ -203,24 +203,6 @@ const Login = () => {
     "&.Mui-disabled": { boxShadow: "none" },
   };
 
-  const logo = (size = 42) => (
-    <Box
-      sx={{
-        width: size,
-        height: size,
-        borderRadius: "12px",
-        display: "grid",
-        placeItems: "center",
-        color: "#fff",
-        background: `linear-gradient(135deg, ${d.blueAccent[500]}, ${d.greenAccent[600]})`,
-        boxShadow: `0 6px 18px ${alpha(d.blueAccent[500], 0.45)}`,
-        flexShrink: 0,
-      }}
-    >
-      <DirectionsCarOutlinedIcon />
-    </Box>
-  );
-
   // a glowing blurred ball of colour behind the glass
   const orb = (sx) => (
     <Box
@@ -329,10 +311,7 @@ const Login = () => {
                 color: "#fff",
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                {logo()}
-                <Typography sx={{ fontWeight: 800, letterSpacing: "0.14em", fontSize: 18 }}>FLEET MANAGEMENT</Typography>
-              </Box>
+              <ArgusBrand size="lg" />
 
               <Box>
                 <Typography sx={{ fontWeight: 800, fontSize: 40, lineHeight: 1.08, letterSpacing: "-0.01em" }}>
@@ -394,13 +373,8 @@ const Login = () => {
                 boxShadow: "inset 0 1px 0 rgba(255,255,255,0.14), 0 20px 50px rgba(0,0,0,0.3)",
               }}
             >
-              {/* logo shows here only on phones (the left panel is hidden there) */}
-              <Box sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", gap: 1.5, mb: 3 }}>
-                {logo(38)}
-                <Typography sx={{ fontWeight: 800, letterSpacing: "0.14em", fontSize: 16, color: "#fff" }}>
-                  FLEET ADMIN
-                </Typography>
-              </Box>
+              {/* name shows here only on phones (the left panel is hidden there) */}
+              <ArgusBrand size="md" sx={{ display: { xs: "flex", md: "none" }, mb: 3 }} />
 
               {/* which node this login is for */}
               {node && (

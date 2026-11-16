@@ -15,6 +15,7 @@ import {
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
 import { tokens } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
+import ArgusBrand from "../../components/ArgusBrand";
 import { canOpen, navSections } from "../../navigation";
 
 const WIDTH = 270;
@@ -144,9 +145,7 @@ const Sidebar = () => {
         }}
       >
         {!isCollapsed && (
-          <Typography variant="h3" sx={{ color: colors.grey[100] }}>
-            FLEET ADMIN
-          </Typography>
+          <ArgusBrand size="sm" badge={false} color={colors.grey[100]} captionColor={colors.greenAccent[500]} />
         )}
         <IconButton
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}

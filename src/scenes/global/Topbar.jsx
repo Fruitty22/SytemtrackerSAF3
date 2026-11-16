@@ -32,6 +32,7 @@ import { ColorModeContext, tokens } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
 import ChangePasswordDialog from "../../components/ChangePasswordDialog";
 import MyAccountDialog from "../../components/MyAccountDialog";
+import ArgusBrand from "../../components/ArgusBrand";
 import ClaimSheetDialog from "../../components/ClaimSheetDialog";
 
 const Topbar = () => {
@@ -85,9 +86,7 @@ const Topbar = () => {
         >
           {navOpen ? <CloseOutlinedIcon /> : <MenuOutlinedIcon />}
         </IconButton>
-        <Typography variant="h4" noWrap sx={{ fontWeight: 700, color: colors.grey[100] }}>
-          FLEET ADMIN
-        </Typography>
+        <ArgusBrand size="sm" badge={false} color={colors.grey[100]} captionColor={colors.greenAccent[500]} />
       </Box>
       <Box sx={{ flex: 1 }} />
       {/* which node you're in; the Super Admin can switch here */}
