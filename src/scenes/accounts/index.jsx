@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -43,12 +44,20 @@ const AccountDialog = ({ account, onClose, onSaved, isSelf }) => {
     username: account?.username ?? "",
     name: account?.name ?? "",
     role: account?.role ?? "commander",
-    sheets: (account?.sheets ?? []).join(", "),
+    sheets: account?.sheets ?? [],
     password: "",
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sheetList, setSheetList] = useState([]); // worksheets from the last import
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  useEffect(() => {
+    api("/sheets")
+      .then((d) => setSheetList(d.sheets ?? []))
+      .catch(() => setSheetList([]));
+  }, []);
+  const sheetInfo = (name) => sheetList.find((s) => s.name.toLowerCase() === String(name).toLowerCase());
 
   const submit = async (event) => {
     event.preventDefault();
@@ -93,11 +102,44 @@ const AccountDialog = ({ account, onClose, onSaved, isSelf }) => {
             onChange={set("username")}
             helperText="For logging in: letters, numbers, . _ -"
           />
-          <TextField
-            label="Excel worksheet(s)"
+          <Autocomplete
+            multiple
+            freeSolo
+            options={sheetList.map((s) => s.name)}
             value={form.sheets}
-            onChange={set("sheets")}
-            helperText="Sheet names in the workbook for this account, separated by commas. Several accounts can share a sheet (they all see its vehicles). Adding a sheet brings its unassigned vehicles here."
+            onChange={(_, value) =>
+              setForm((f) => ({ ...f, sheets: [...new Set(value.map((v) => String(v).trim()).filter(Boolean))] }))
+            }
+            filterSelectedOptions
+            renderOption={(props, name) => {
+              const info = sheetInfo(name);
+              const { key, ...rest } = props;
+              return (
+                <li key={key} {...rest}>
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {name}
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                      {info?.vehicles ?? 0} vehicle(s)
+                      {info?.claimedBy ? ` · now with ${info.claimedBy}` : " · not linked to anyone yet"}
+                    </Typography>
+                  </Box>
+                </li>
+              );
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Excel worksheet(s)"
+                placeholder={form.sheets.length ? "" : "Choose from the imported sheets"}
+                helperText={
+                  sheetList.length
+                    ? "Pick the sheet(s) from the last import. Saving brings their vehicles to this account. Several accounts can share a sheet (they all see its vehicles)."
+                    : "No sheets imported yet - import the Excel files first, or type a sheet name and press Enter."
+                }
+              />
+            )}
           />
           <TextField
             select
@@ -145,7 +187,7 @@ const AccountDialog = ({ account, onClose, onSaved, isSelf }) => {
   );
 };
 
-// ---- Deleted accounts (kept in server/data/deleted-accounts.json)
+// ---- Deleted accounts (kept in the database)
 const DeletedAccounts = ({ reloadKey, onRestored }) => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
@@ -191,7 +233,7 @@ const DeletedAccounts = ({ reloadKey, onRestored }) => {
         Deleted accounts ({items.length})
       </Typography>
       <Typography sx={{ color: colors.grey[300], mb: 1.5 }}>
-        Kept in <code>server/data/deleted-accounts.json</code>. Restoring brings the
+        Kept in the database. Restoring brings the
         account back with its old password; its vehicles stay with whoever took them over.
       </Typography>
       {error && (

@@ -703,7 +703,7 @@ export function createApi({ store = createStore() } = {}) {
         users: D.users.map((u) => ({ ...publicUser(u), vehicleCount: vehicleCount(u.id) })),
       })),
 
-      route("POST", "/api/users", "admin", ({ body }) => {
+      route("POST", "/api/users", "admin", ({ body, user: me }) => {
         const username = cleanUsername(body.username);
         const name = cleanName(body.name);
         const password = cleanPassword(body.password);
@@ -720,8 +720,10 @@ export function createApi({ store = createStore() } = {}) {
           createdAt: now(),
         };
         D.users.push(user);
+        // bring the vehicles of the sheets chosen for the new account
+        const moved = user.sheets.length ? moveSheetVehicles(user, user.sheets, me, { fromAdminsOnly: false }) : 0;
         db.save();
-        return { user: { ...publicUser(user), vehicleCount: 0 } };
+        return { user: { ...publicUser(user), vehicleCount: vehicleCount(user.id) }, moved };
       }),
 
       route("PATCH", "/api/users/:id", "admin", ({ params, body, user: me }) => {
@@ -738,13 +740,10 @@ export function createApi({ store = createStore() } = {}) {
             fail(409, "An account with that display name already exists.");
           }
         }
-        let addedSheets = [];
         let removedSheets = [];
         if ("sheets" in body) {
           changes.sheets = cleanSheets(body.sheets);
-          const before = new Set((target.sheets ?? []).map(sheetKey));
           const after = new Set(changes.sheets.map(sheetKey));
-          addedSheets = changes.sheets.filter((sheet) => !before.has(sheetKey(sheet)));
           removedSheets = (target.sheets ?? []).filter((sheet) => !after.has(sheetKey(sheet)));
         }
         if ("role" in body && body.role !== target.role) {
@@ -760,9 +759,11 @@ export function createApi({ store = createStore() } = {}) {
         let moved = 0;
         // sheets taken off: their vehicles go to whoever still has the sheet, or Unassigned
         for (const sheet of removedSheets) releaseSheet(target, sheet);
-        if (addedSheets.length) {
-          // bring the sheet's vehicles unless they're already with someone sharing it
-          moved = moveSheetVehicles(target, addedSheets, me, { fromAdminsOnly: false });
+        if ("sheets" in body && changes.sheets.length) {
+          // bring the vehicles of ALL this account's sheets (not only newly added
+          // ones, so saving again picks up vehicles that were missed), unless
+          // they're already with someone sharing the sheet
+          moved = moveSheetVehicles(target, changes.sheets, me, { fromAdminsOnly: false });
         }
         if (changes.passwordHash && target.id !== me.id) {
           D.sessions = D.sessions.filter((s) => s.userId !== target.id);
