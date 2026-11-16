@@ -240,7 +240,15 @@ export function supabaseStore({ url, key, table = "fleet_store", fetchImpl = glo
       return others.get(nodeKey);
     },
     async load() {
-      // a tiny request first: has anything changed since we last read it?
+      // nothing read yet on this server: read everything in one go
+      if (!cache) {
+        const full = await call("GET", `${MAIN}&select=version,data`);
+        if (full.length) {
+          cache = { data: { ...emptyDb(), ...(full[0].data ?? {}) }, version: Number(full[0].version) };
+          return { data: clone(cache.data), version: cache.version };
+        }
+      }
+      // read before: a tiny request first - has anything changed since then?
       const rows = await call("GET", `${MAIN}&select=version`);
       if (!rows.length) {
         await call("POST", "on_conflict=id", { id: rowId, version: 0, data: emptyDb() }, "resolution=ignore-duplicates,return=minimal");

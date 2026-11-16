@@ -1324,6 +1324,20 @@ export function createApi({ store = createStore() } = {}) {
         events: D.events.filter((e) => canSeeEvent(user, e)).map((e) => publicEvent(user, e)),
       })),
 
+      // Everything a page load needs in ONE request (vehicles, accounts, rules,
+      // bookings) - on Vercel every request reads the database again, so one
+      // request is much faster than four
+      route("GET", "/api/bootstrap", "user", ({ user }) => ({
+        vehicles: D.vehicles.filter((v) => canSeeVehicle(user, v)).map(vehicleOut),
+        users:
+          user.role === "admin" ? D.users.map((u) => ({ ...publicUser(u), vehicleCount: vehicleCount(u.id) })) : [],
+        disregards: D.disregards,
+        updated: D.disregardsUpdated,
+        criteria: D.criteria,
+        valueMeanings: D.valueMeanings,
+        events: D.events.filter((e) => canSeeEvent(user, e)).map((e) => publicEvent(user, e)),
+      })),
+
       route("POST", "/api/events", "user", ({ user, body }) => {
         const e = checkedEvent(body, user);
         D.events.push(e);

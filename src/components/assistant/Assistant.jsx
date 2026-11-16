@@ -23,6 +23,8 @@ import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import SendIcon from "@mui/icons-material/Send";
 import DeleteSweepOutlinedIcon from "@mui/icons-material/DeleteSweepOutlined";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import { api } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
 import { useVehicles } from "../../data/VehiclesContext";
@@ -154,6 +156,23 @@ const Assistant = () => {
   const { pathname } = useLocation();
   const phone = useMediaQuery("(max-width:600px)");
   const [open, setOpen] = useState(false);
+  // "tucked away": the round button becomes a small tab on the right edge,
+  // so it doesn't cover anything (remembered on this browser)
+  const [tucked, setTucked] = useState(() => {
+    try {
+      return localStorage.getItem("fleet.assistant.tucked") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const tuck = (value) => {
+    setTucked(value);
+    try {
+      localStorage.setItem("fleet.assistant.tucked", value ? "1" : "0");
+    } catch {
+      /* not remembered */
+    }
+  };
   const storeKey = `${STORE_KEY}.${node?.key ?? "ktn"}.${user.id}`;
   const [items, setItems] = useState(() => load(storeKey)); // [{ role, content, actions? }]
   const [input, setInput] = useState("");
@@ -362,19 +381,79 @@ const Assistant = () => {
     </Paper>
   );
 
-  return open ? (
-    panel
-  ) : (
-    <Tooltip title="Ask the fleet assistant" placement="left">
-      <Fab
-        color="secondary"
-        onClick={() => setOpen(true)}
-        aria-label="Open the fleet assistant"
-        sx={{ position: "fixed", right: 20, bottom: 20, zIndex: 1200 }}
-      >
-        <SmartToyOutlinedIcon />
-      </Fab>
-    </Tooltip>
+  if (open) return panel;
+
+  // tucked away: a slim tab on the right edge
+  if (tucked) {
+    return (
+      <Tooltip title="Show the fleet assistant" placement="left">
+        <Box
+          component="button"
+          type="button"
+          onClick={() => tuck(false)}
+          aria-label="Show the fleet assistant"
+          sx={{
+            position: "fixed",
+            right: 0,
+            bottom: { xs: 16, md: 28 },
+            zIndex: 1200,
+            width: 26,
+            height: 52,
+            p: 0,
+            border: 0,
+            borderRadius: "12px 0 0 12px",
+            cursor: "pointer",
+            display: "grid",
+            placeItems: "center",
+            color: "secondary.contrastText",
+            bgcolor: "secondary.main",
+            opacity: 0.75,
+            boxShadow: 3,
+            transition: "opacity 0.15s, width 0.15s",
+            "&:hover, &:focus-visible": { opacity: 1, width: 34 },
+          }}
+        >
+          <ChevronLeftIcon fontSize="small" />
+        </Box>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <Box sx={{ position: "fixed", right: { xs: 14, md: 20 }, bottom: { xs: 14, md: 20 }, zIndex: 1200 }}>
+      <Tooltip title="Ask the fleet assistant" placement="left">
+        <Fab
+          color="secondary"
+          size={phone ? "medium" : "large"}
+          onClick={() => setOpen(true)}
+          aria-label="Open the fleet assistant"
+        >
+          <SmartToyOutlinedIcon />
+        </Fab>
+      </Tooltip>
+      {/* tuck the button away to the side */}
+      <Tooltip title="Hide to the side" placement="top">
+        <IconButton
+          size="small"
+          onClick={() => tuck(true)}
+          aria-label="Hide the assistant button to the side"
+          sx={{
+            position: "absolute",
+            top: -8,
+            left: -8,
+            width: 22,
+            height: 22,
+            bgcolor: "background.paper",
+            border: 1,
+            borderColor: "divider",
+            boxShadow: 2,
+            "&:hover": { bgcolor: "background.paper" },
+          }}
+        >
+          <ChevronRightIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+      </Tooltip>
+    </Box>
   );
 };
 

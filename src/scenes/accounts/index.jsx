@@ -64,8 +64,9 @@ const AccountDialog = ({ account, onClose, onSaved, isSelf }) => {
     setBusy(true);
     setError("");
     try {
+      let saved;
       if (creating) {
-        await api("/users", { method: "POST", body: form });
+        saved = await api("/users", { method: "POST", body: form });
       } else {
         const patch = {
           name: form.name,
@@ -74,10 +75,12 @@ const AccountDialog = ({ account, onClose, onSaved, isSelf }) => {
           sheets: form.sheets,
         };
         if (form.password) patch.password = form.password;
-        await api(`/users/${account.id}`, { method: "PATCH", body: patch });
+        saved = await api(`/users/${account.id}`, { method: "PATCH", body: patch });
       }
-      await onSaved();
+      // close and show the account straight away; the full reload (vehicle
+      // counts that moved, etc.) carries on in the background
       onClose();
+      onSaved(saved?.user);
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -312,7 +315,7 @@ const Accounts = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const { user: me, reloadUser } = useAuth();
-  const { users, loading, error, refresh } = useVehicles();
+  const { users, upsertUser, loading, error, refresh } = useVehicles();
   const [editing, setEditing] = useState(null); // {} = new account
   const [deleting, setDeleting] = useState(null);
   const [reassignTo, setReassignTo] = useState("");
@@ -446,9 +449,10 @@ const Accounts = () => {
           account={editing}
           isSelf={editing.id === me.id}
           onClose={() => setEditing(null)}
-          onSaved={async () => {
-            if (editing.id === me.id) await reloadUser(); // also refreshes the list
-            else await refresh();
+          onSaved={(saved) => {
+            if (saved) upsertUser(saved);
+            if (editing.id === me.id) reloadUser().catch(() => {}); // also refreshes the list
+            else refresh();
           }}
         />
       )}

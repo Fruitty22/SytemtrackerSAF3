@@ -29,12 +29,12 @@ export function VehiclesProvider({ children }) {
     setLoading(true);
     setError("");
     try {
-      const [vehicleData, userData, disregardData, eventData] = await Promise.all([
-        api("/vehicles"),
-        user.role === "admin" ? api("/users") : Promise.resolve({ users: [] }),
-        api("/disregards"),
-        api("/events"),
-      ]);
+      // one request for everything (see /api/bootstrap)
+      const all = await api("/bootstrap");
+      const vehicleData = all;
+      const userData = all;
+      const disregardData = all;
+      const eventData = all;
       // the criteria list decides which fields every page shows and counts,
       // so it is applied before the vehicles are shown
       applyCriteria(disregardData.criteria);
@@ -136,6 +136,13 @@ export function VehiclesProvider({ children }) {
     setDisregardsUpdated(data.updated ?? {});
   }, []);
 
+  // Show an account straight away after it's added or changed (Accounts page),
+  // before the full reload comes back
+  const upsertUser = useCallback((u) => {
+    if (!u?.id) return;
+    setUsers((list) => (list.some((x) => x.id === u.id) ? list.map((x) => (x.id === u.id ? { ...x, ...u } : x)) : [...list, u]));
+  }, []);
+
   // Add / reclassify / remove criteria (Admin). changes: { set?, remove?, reset? }
   // Everything is reloaded afterwards, because every page counts the criteria.
   const saveCriteria = useCallback(
@@ -195,6 +202,7 @@ export function VehiclesProvider({ children }) {
     () => ({
       vehicles,
       users,
+      upsertUser,
       vehicleTypes,
       disregards,
       disregardsUpdated,
@@ -218,7 +226,7 @@ export function VehiclesProvider({ children }) {
       assignVehicles,
       deleteVehicles,
     }),
-    [vehicles, users, vehicleTypes, disregards, disregardsUpdated, saveDisregards, criteria, saveCriteria, valueMeanings, deployOf, events, today, createEvent, updateEvent, deleteEvent, loading, error, refresh, createVehicle, updateVehicle, deleteVehicle, importVehicles, assignVehicles, deleteVehicles]
+    [vehicles, users, upsertUser, vehicleTypes, disregards, disregardsUpdated, saveDisregards, criteria, saveCriteria, valueMeanings, deployOf, events, today, createEvent, updateEvent, deleteEvent, loading, error, refresh, createVehicle, updateVehicle, deleteVehicle, importVehicles, assignVehicles, deleteVehicles]
   );
 
   return <VehiclesContext.Provider value={value}>{children}</VehiclesContext.Provider>;
