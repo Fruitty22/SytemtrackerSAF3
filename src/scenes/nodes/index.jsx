@@ -1,5 +1,6 @@
 import { Box, ButtonBase, Typography, alpha, useTheme } from "@mui/material";
 import ArgusBrand from "../../components/ArgusBrand";
+import ArgusMark, { NODE_LOGOS } from "../../components/ArgusMark";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { tokens } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
@@ -183,46 +184,81 @@ const NodePicker = () => {
                   gap: { xs: 1.25, sm: 1.5 },
                 }}
               >
-                {NODES.map((n, i) => (
-                  <ButtonBase
-                    key={n.key}
-                    onClick={() => chooseNode(n.key)}
-                    aria-label={`Log in to ${n.name}`}
-                    sx={{
-                      position: "relative",
-                      justifyContent: "space-between",
-                      gap: 1,
-                      minHeight: { xs: 64, sm: 76 },
-                      px: { xs: 1.75, sm: 2.25 },
-                      borderRadius: "14px",
-                      textAlign: "left",
-                      color: "#fff",
-                      backgroundColor: "rgba(255,255,255,0.07)",
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      animation: `${rise} 0.45s ease-out both`,
-                      animationDelay: `${0.04 * i}s`,
-                      transition: "transform 0.15s, border-color 0.15s, background-color 0.15s, box-shadow 0.15s",
-                      "& .go": { opacity: 0.35, transition: "opacity 0.15s, transform 0.15s" },
-                      "&:hover, &.Mui-focusVisible": {
-                        transform: "translateY(-2px)",
-                        borderColor: alpha(accent, 0.8),
-                        backgroundColor: alpha(accent, 0.16),
-                        boxShadow: `0 10px 26px ${alpha(accent, 0.22)}`,
-                        "& .go": { opacity: 1, transform: "translateX(2px)" },
-                      },
-                      "@media (prefers-reduced-motion: reduce)": {
-                        animation: "none",
-                        transition: "none",
-                        "&:hover": { transform: "none" },
-                      },
-                    }}
-                  >
-                    <Typography sx={{ fontWeight: 800, letterSpacing: "0.06em", fontSize: { xs: 16, sm: 19 }, lineHeight: 1.15 }}>
-                      {n.name}
-                    </Typography>
-                    <ArrowForwardIcon className="go" sx={{ fontSize: 20, flexShrink: 0 }} />
-                  </ButtonBase>
-                ))}
+                {NODES.map((n, i) => {
+                  // gold nodes glow gold on hover, the others green
+                  const tint = NODE_LOGOS[n.key]?.gold ? "#e9c46a" : accent;
+                  return (
+                    <ButtonBase
+                      key={n.key}
+                      onClick={() => chooseNode(n.key)}
+                      aria-label={`Log in to ${n.name}`}
+                      sx={{
+                        position: "relative",
+                        justifyContent: "flex-start",
+                        gap: { xs: 1.1, sm: 1.5 },
+                        minHeight: { xs: 70, sm: 84 },
+                        pl: { xs: 1, sm: 1.5 },
+                        pr: { xs: 1.25, sm: 1.75 },
+                        borderRadius: "16px",
+                        textAlign: "left",
+                        color: "#fff",
+                        background: `linear-gradient(135deg, rgba(255,255,255,0.09), rgba(255,255,255,0.03))`,
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        overflow: "hidden",
+                        animation: `${rise} 0.45s ease-out both`,
+                        animationDelay: `${0.04 * i}s`,
+                        transition: "transform 0.18s, border-color 0.18s, background 0.18s, box-shadow 0.18s",
+                        // soft light behind the logo
+                        "&::before": {
+                          content: '""',
+                          position: "absolute",
+                          left: -18,
+                          top: "50%",
+                          width: 90,
+                          height: 90,
+                          transform: "translateY(-50%)",
+                          borderRadius: "50%",
+                          background: `radial-gradient(circle, ${alpha(tint, 0.22)} 0%, transparent 70%)`,
+                          pointerEvents: "none",
+                        },
+                        "& .logo": { transition: "transform 0.25s" },
+                        "& .go": { opacity: 0.35, transition: "opacity 0.15s, transform 0.15s" },
+                        "&:hover, &.Mui-focusVisible": {
+                          transform: "translateY(-2px)",
+                          borderColor: alpha(tint, 0.85),
+                          background: `linear-gradient(135deg, ${alpha(tint, 0.2)}, rgba(255,255,255,0.04))`,
+                          boxShadow: `0 10px 28px ${alpha(tint, 0.25)}`,
+                          "& .logo": { transform: "scale(1.08) rotate(-3deg)" },
+                          "& .go": { opacity: 1, transform: "translateX(2px)" },
+                        },
+                        "@media (prefers-reduced-motion: reduce)": {
+                          animation: "none",
+                          transition: "none",
+                          "&:hover": { transform: "none" },
+                          "&:hover .logo": { transform: "none" },
+                        },
+                      }}
+                    >
+                      <Box className="logo" sx={{ position: "relative", flexShrink: 0 }}>
+                        <ArgusMark node={n.key} size={52} sx={{ width: { xs: 44, sm: 54 }, height: { xs: 44, sm: 54 } }} />
+                      </Box>
+                      <Typography
+                        sx={{
+                          position: "relative",
+                          flex: 1,
+                          minWidth: 0,
+                          fontWeight: 800,
+                          letterSpacing: "0.06em",
+                          fontSize: { xs: 14.5, sm: 18 },
+                          lineHeight: 1.15,
+                        }}
+                      >
+                        {n.name}
+                      </Typography>
+                      <ArrowForwardIcon className="go" sx={{ position: "relative", fontSize: 20, flexShrink: 0, color: tint, display: { xs: "none", sm: "block" } }} />
+                    </ButtonBase>
+                  );
+                })}
               </Box>
             </Box>
           </Box>

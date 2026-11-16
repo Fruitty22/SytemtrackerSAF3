@@ -33,6 +33,7 @@ import { useAuth } from "../../auth/AuthContext";
 import ChangePasswordDialog from "../../components/ChangePasswordDialog";
 import MyAccountDialog from "../../components/MyAccountDialog";
 import ArgusBrand from "../../components/ArgusBrand";
+import ArgusMark from "../../components/ArgusMark";
 import ClaimSheetDialog from "../../components/ClaimSheetDialog";
 
 const Topbar = () => {
@@ -86,7 +87,7 @@ const Topbar = () => {
         >
           {navOpen ? <CloseOutlinedIcon /> : <MenuOutlinedIcon />}
         </IconButton>
-        <ArgusBrand size="xs" color={colors.grey[100]} captionColor={colors.greenAccent[500]} />
+        <ArgusBrand size="xs" node={node?.key} color={colors.grey[100]} captionColor={colors.greenAccent[500]} />
       </Box>
       <Box sx={{ flex: 1 }} />
       {/* which node you're in; the Super Admin can switch here */}
@@ -134,7 +135,9 @@ const Topbar = () => {
               }}
               sx={{ minWidth: 240 }}
             >
-              <ListItemIcon>{n.key === node?.key ? <CheckIcon fontSize="small" /> : null}</ListItemIcon>
+              <ListItemIcon sx={{ minWidth: 44 }}>
+                <ArgusMark size={30} node={n.key} animate={false} />
+              </ListItemIcon>
               <Box sx={{ flex: 1 }}>
                 <Typography sx={{ fontWeight: 700 }}>{n.name}</Typography>
                 {c && c.accounts !== null && (
@@ -143,6 +146,7 @@ const Topbar = () => {
                   </Typography>
                 )}
               </Box>
+              {n.key === node?.key && <CheckIcon fontSize="small" sx={{ ml: 1, opacity: 0.8 }} />}
             </MenuItem>
           );
         })}

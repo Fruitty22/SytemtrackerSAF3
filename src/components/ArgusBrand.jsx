@@ -16,12 +16,12 @@ const SIZES = {
   xs: { badge: 32, icon: 18, name: 24, caption: 11, gap: 0.9 },
 };
 
-const ArgusBrand = ({ size = "lg", color = "#fff", captionColor, badge = true, caption = true, sx }) => {
+const ArgusBrand = ({ size = "lg", node, color = "#fff", captionColor, badge = true, caption = true, sx }) => {
   const d = tokens("dark");
   const s = SIZES[size] ?? SIZES.lg;
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: s.gap, minWidth: 0, ...sx }}>
-      {badge && <ArgusMark size={s.badge} />}
+      {badge && <ArgusMark size={s.badge} node={node} />}
       <Box sx={{ minWidth: 0 }}>
         <Typography
           component="span"

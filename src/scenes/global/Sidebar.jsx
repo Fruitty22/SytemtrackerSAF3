@@ -107,7 +107,7 @@ export const NavList = ({ collapsed = false, onNavigate }) => {
 const Sidebar = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
-  const { user } = useAuth();
+  const { user, node } = useAuth(); // each node shows its own logo
   const [isCollapsed, setIsCollapsed] = useState(false);
   // on phones the sidebar isn't drawn at all (not just hidden), so pages open faster
   const isPhone = useMediaQuery(theme.breakpoints.down("md"), { noSsr: true });
@@ -145,7 +145,7 @@ const Sidebar = () => {
         }}
       >
         {!isCollapsed && (
-          <ArgusBrand size="sm" color={colors.grey[100]} captionColor={colors.greenAccent[500]} />
+          <ArgusBrand size="sm" node={node?.key} color={colors.grey[100]} captionColor={colors.greenAccent[500]} />
         )}
         <IconButton
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
