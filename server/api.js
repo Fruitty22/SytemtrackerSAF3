@@ -791,6 +791,9 @@ export function createApi({ store = createStore() } = {}) {
         const target = findUser(params.id);
         if (!target) fail(404, "Account not found.");
         if (target.superAdmin && !me.superAdmin) fail(403, "Only the Super Admin can change this account.");
+        if (target.superAdmin && "role" in body && body.role !== target.role) {
+          fail(403, "The Super Admin account always stays an Admin.");
+        }
         const changes = {};
         if ("username" in body) {
           changes.username = cleanUsername(body.username);
@@ -837,6 +840,7 @@ export function createApi({ store = createStore() } = {}) {
       route("DELETE", "/api/users/:id", "admin", ({ params, query, user: me }) => {
         const target = findUser(params.id);
         if (!target) fail(404, "Account not found.");
+        // nobody - not even the Super Admin - can delete a Super Admin account
         if (target.superAdmin) fail(403, "The Super Admin account can't be deleted.");
         if (target.id === me.id) fail(400, "You can't delete your own account.");
         if (target.role === "admin" && adminCount() <= 1) {
@@ -1275,8 +1279,14 @@ export function createApi({ store = createStore() } = {}) {
         const snap = await store.loadSnapshot("import");
         if (!snap?.data || D.lastImportUndone === snap.savedAt) fail(404, "There is nothing to undo.");
         const sessions = D.sessions;
+        const supers = D.users.filter((u) => u.superAdmin); // never lost or changed by an undo
         for (const key of Object.keys(D)) delete D[key];
         Object.assign(D, structuredClone(snap.data), { sessions, lastImportUndone: snap.savedAt });
+        for (const sup of supers) {
+          const i = D.users.findIndex((u) => u.id === sup.id);
+          if (i >= 0) D.users[i] = sup;
+          else D.users.push(sup);
+        }
         applyCriteria(D.criteria);
         db.save();
         return { restoredTo: snap.savedAt };

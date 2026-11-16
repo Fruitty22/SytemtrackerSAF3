@@ -146,8 +146,14 @@ const AccountDialog = ({ account, onClose, onSaved, isSelf }) => {
             label="Role"
             value={form.role}
             onChange={set("role")}
-            disabled={isSelf}
-            helperText={isSelf ? "You can't change your own role" : " "}
+            disabled={isSelf || !!account?.superAdmin}
+            helperText={
+              account?.superAdmin
+                ? "The Super Admin always stays an Admin"
+                : isSelf
+                  ? "You can't change your own role"
+                  : " "
+            }
           >
             {Object.entries(ROLES).map(([value, label]) => (
               <MenuItem key={value} value={value}>
@@ -351,16 +357,26 @@ const Accounts = () => {
         filterable: false,
         renderCell: ({ row }) => (
           <Box>
-            <Tooltip title="Edit">
-              <IconButton size="small" onClick={() => setEditing(row)}>
-                <EditOutlinedIcon fontSize="small" />
-              </IconButton>
+            <Tooltip title={row.superAdmin && !me.superAdmin ? "Only the Super Admin can change this account" : "Edit"}>
+              <span>
+                <IconButton size="small" disabled={row.superAdmin && !me.superAdmin} onClick={() => setEditing(row)}>
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
+              </span>
             </Tooltip>
-            <Tooltip title={row.id === me.id ? "You can't delete yourself" : "Delete"}>
+            <Tooltip
+              title={
+                row.superAdmin
+                  ? "The Super Admin account can't be deleted"
+                  : row.id === me.id
+                    ? "You can't delete yourself"
+                    : "Delete"
+              }
+            >
               <span>
                 <IconButton
                   size="small"
-                  disabled={row.id === me.id}
+                  disabled={row.id === me.id || row.superAdmin}
                   onClick={() => {
                     setReassignTo("");
                     setDeleting(row);
@@ -374,7 +390,7 @@ const Accounts = () => {
         ),
       },
     ],
-    [me.id]
+    [me.id, me.superAdmin]
   );
 
   const deleteAccount = async () => {
