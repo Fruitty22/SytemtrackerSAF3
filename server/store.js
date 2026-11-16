@@ -12,11 +12,16 @@
 //                            (then the request is simply run again on the new data)
 //   saveSnapshot(name, data) / loadSnapshot(name)   a copy kept before each import,
 //                            so an import can be undone
+//   forNode(key)          -> the same kind of store for another node (shared/nodes.js).
+//                            KTN (the main node) is "main" / db.json, so the data
+//                            from before nodes existed stays where it was; other
+//                            nodes are "node:<key>" / db-<key>.json.
 //
 // "version" goes up by one on every save. Two people saving at the same moment
 // can't overwrite each other: the second save sees the version has moved on.
 import fs from "node:fs";
 import path from "node:path";
+import { MAIN_NODE } from "../shared/nodes.js";
 
 export const emptyDb = () => ({
   version: 1,
@@ -52,13 +57,26 @@ function brokenStore(message) {
     err.expose = true;
     throw err;
   };
-  return { kind: "none", load: fail, save: fail, saveSnapshot: fail, loadSnapshot: fail };
+  const self = { kind: "none", load: fail, save: fail, saveSnapshot: fail, loadSnapshot: fail };
+  self.forNode = () => self;
+  return self;
 }
 
 // ---------------------------------------------------------------- local file
 
-export function fileStore(file) {
+// one store per file, so every node (and every request) shares the same copy
+const fileStores = new Map();
+
+export function fileStore(file, options = {}) {
+  const abs = path.resolve(file);
+  if (!fileStores.has(abs)) fileStores.set(abs, makeFileStore(abs, options));
+  return fileStores.get(abs);
+}
+
+// mainFile: the main (KTN) file; other nodes sit next to it as <name>-<node>.json
+function makeFileStore(file, { node = MAIN_NODE, mainFile = file } = {}) {
   const dir = path.dirname(file);
+  const base = path.basename(file, ".json");
   let current = null; // { data, version }
 
   function open() {
@@ -76,11 +94,11 @@ export function fileStore(file) {
         );
       }
       // keep a copy of the database as it was when the server started
-      fs.writeFileSync(path.join(dir, "db.backup.json"), text);
+      fs.writeFileSync(path.join(dir, `${base}.backup.json`), text);
     }
     // older versions kept deleted accounts in their own file
     const oldDeleted = path.join(dir, "deleted-accounts.json");
-    if (fs.existsSync(oldDeleted)) {
+    if (node === MAIN_NODE && fs.existsSync(oldDeleted)) {
       try {
         const list = JSON.parse(fs.readFileSync(oldDeleted, "utf8"));
         if (Array.isArray(list) && list.length && !data.deletedAccounts?.length) data.deletedAccounts = list;
@@ -99,11 +117,19 @@ export function fileStore(file) {
     fs.renameSync(tmp, file);
   }
 
-  const snapFile = (name) => path.join(dir, `snapshot-${name.replace(/[^a-z0-9-]/gi, "")}.json`);
+  const prefix = node === MAIN_NODE ? "" : `${node}-`;
+  const snapFile = (name) => path.join(dir, `snapshot-${prefix}${name.replace(/[^a-z0-9-]/gi, "")}.json`);
 
-  return {
+  const self = {
     kind: "file",
+    node,
     file,
+    forNode(key) {
+      if (key === node) return self;
+      if (key === MAIN_NODE) return fileStore(mainFile);
+      const mainBase = path.basename(mainFile, ".json");
+      return fileStore(path.join(path.dirname(mainFile), `${mainBase}-${key}.json`), { node: key, mainFile });
+    },
     async load() {
       const c = open();
       return { data: clone(c.data), version: c.version };
@@ -123,6 +149,7 @@ export function fileStore(file) {
       return JSON.parse(fs.readFileSync(snapFile(name), "utf8"));
     },
   };
+  return self;
 }
 
 // ---------------------------------------------------------------- Supabase
@@ -140,7 +167,11 @@ export function cleanSupabaseUrl(value) {
 
 // Talks to Supabase's REST API with plain fetch(), so there is nothing extra to
 // install. The service-role key stays on the server; the browser never sees it.
-export function supabaseStore({ url, key, table = "fleet_store", fetchImpl = globalThis.fetch }) {
+export function supabaseStore({ url, key, table = "fleet_store", fetchImpl = globalThis.fetch, node = MAIN_NODE }) {
+  // KTN keeps the original row "main"; other nodes are "node:<key>"
+  const rowId = node === MAIN_NODE ? "main" : `node:${node}`;
+  const snapId = (name) => (node === MAIN_NODE ? `snapshot:${name}` : `snapshot:${node}:${name}`);
+  const others = new Map();
   // Accept the URL however it was copied: "https://x.supabase.co",
   // ".../rest/v1/", with spaces or quotes around it - only the site part is used
   const site = cleanSupabaseUrl(url);
@@ -198,15 +229,21 @@ export function supabaseStore({ url, key, table = "fleet_store", fetchImpl = glo
     return text ? JSON.parse(text) : null;
   }
 
-  const MAIN = "id=eq.main";
+  const MAIN = `id=eq.${encodeURIComponent(rowId)}`;
 
-  return {
+  const self = {
     kind: "supabase",
+    node,
+    forNode(nodeKey) {
+      if (nodeKey === node) return self;
+      if (!others.has(nodeKey)) others.set(nodeKey, supabaseStore({ url, key, table, fetchImpl, node: nodeKey }));
+      return others.get(nodeKey);
+    },
     async load() {
       // a tiny request first: has anything changed since we last read it?
       const rows = await call("GET", `${MAIN}&select=version`);
       if (!rows.length) {
-        await call("POST", "on_conflict=id", { id: "main", version: 0, data: emptyDb() }, "resolution=ignore-duplicates,return=minimal");
+        await call("POST", "on_conflict=id", { id: rowId, version: 0, data: emptyDb() }, "resolution=ignore-duplicates,return=minimal");
         cache = { data: emptyDb(), version: 0 };
         return { data: emptyDb(), version: 0 };
       }
@@ -235,13 +272,14 @@ export function supabaseStore({ url, key, table = "fleet_store", fetchImpl = glo
       await call(
         "POST",
         "on_conflict=id",
-        { id: `snapshot:${name}`, version: 0, data: { savedAt: new Date().toISOString(), data }, updated_at: new Date().toISOString() },
+        { id: snapId(name), version: 0, data: { savedAt: new Date().toISOString(), data }, updated_at: new Date().toISOString() },
         "resolution=merge-duplicates,return=minimal"
       );
     },
     async loadSnapshot(name) {
-      const rows = await call("GET", `id=eq.${encodeURIComponent(`snapshot:${name}`)}&select=data`);
+      const rows = await call("GET", `id=eq.${encodeURIComponent(snapId(name))}&select=data`);
       return rows?.[0]?.data ?? null;
     },
   };
+  return self;
 }

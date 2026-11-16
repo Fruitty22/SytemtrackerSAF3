@@ -7,6 +7,7 @@
 // Only Node's built-in modules are used, so there is nothing extra to install.
 import crypto from "node:crypto";
 import { createStore } from "./store.js";
+import { NODES, MAIN_NODE, nodeByKey } from "../shared/nodes.js";
 import { hashPassword, verifyPassword, newToken, hashToken } from "./auth.js";
 import {
   ROLES,
@@ -179,7 +180,7 @@ export function createApi({ store = createStore() } = {}) {
   // Everything the API knows, built around one loaded copy of the database.
   // A fresh copy is loaded for every request (the server may run as many
   // separate copies on Vercel), so nothing here is kept between requests.
-  function openApp(data) {
+  function openApp(data, { node = MAIN_NODE } = {}) {
     const D = data;
     let dirty = false;
     // handlers call db.save() after a change; the change is written to the
@@ -230,6 +231,23 @@ export function createApi({ store = createStore() } = {}) {
 
     D.events ??= []; // calendar bookings (see shared/schedule.js)
 
+    // The Super Admin(s) live in the main node (KTN) and can enter every node.
+    // The account with username "admin" is the Super Admin; more can be named
+    // in SUPER_ADMINS (comma-separated usernames, in KTN).
+    if (node === MAIN_NODE) {
+      const extra = String(process.env.SUPER_ADMINS ?? "")
+        .split(",")
+        .map((u) => u.trim().toLowerCase())
+        .filter(Boolean);
+      for (const u of D.users) {
+        const should = u.role === "admin" && (u.username === "admin" || extra.includes(u.username));
+        if (should && !u.superAdmin) {
+          u.superAdmin = true;
+          db.save();
+        }
+      }
+    }
+
     // The criteria list (the workbook's CriteriaConfig sheet). A new database
     // starts with the criteria in shared/config.js.
     if (!Array.isArray(D.criteria) || D.criteria.length === 0) {
@@ -275,10 +293,30 @@ export function createApi({ store = createStore() } = {}) {
       username: u.username,
       name: u.name,
       role: u.role,
-      roleLabel: ROLES[u.role] ?? u.role,
+      roleLabel: u.superAdmin ? "Super Admin" : ROLES[u.role] ?? u.role,
+      superAdmin: !!u.superAdmin,
       sheets: u.sheets ?? [],
       createdAt: u.createdAt,
     });
+
+    // The Super Admin inside another node: not one of this node's accounts,
+    // but an Admin here for this request
+    const visitingSuperAdmin = (u) => ({
+      id: u.id,
+      username: u.username,
+      name: u.name,
+      role: "admin",
+      superAdmin: true,
+      visiting: true,
+      sheets: [],
+      createdAt: u.createdAt,
+    });
+
+    // Is this the username + password of a Super Admin? (main node only)
+    const superLogin = (username, password) => {
+      const u = findUserByUsername(username ?? "");
+      return !!(u?.superAdmin && verifyPassword(password ?? "", u));
+    };
 
     // ---- worksheets and who manages which vehicle
     //
@@ -477,7 +515,8 @@ export function createApi({ store = createStore() } = {}) {
     }
 
     function newVehicle(body, user) {
-      let ownerId = user.id;
+      // the Super Admin visiting a node isn't one of its accounts: Unassigned by default
+      let ownerId = user.visiting ? null : user.id;
       if (user.role === "admin" && "ownerId" in body) ownerId = ownerValue(body.ownerId);
       if (ownerId && !findUser(ownerId)) fail(400, "That account doesn't exist.");
       const base = {
@@ -617,6 +656,7 @@ export function createApi({ store = createStore() } = {}) {
     const routes = [
       // ---------------- auth
       route("GET", "/api/auth/status", "public", () => ({
+        node: nodeByKey(node),
         hasUsers: D.users.length > 0,
         signupOpen: D.users.length === 0 || !/^(false|0|no)$/i.test(process.env.ALLOW_SIGNUP ?? ""),
       })),
@@ -637,7 +677,9 @@ export function createApi({ store = createStore() } = {}) {
           id: newId(),
           username,
           name,
-          role: D.users.length === 0 ? "admin" : "commander",
+          // the very first account of the main node is its Admin; in every other
+          // node, Admins are made by the Super Admin (so nobody can grab a node)
+          role: D.users.length === 0 && node === MAIN_NODE ? "admin" : "commander",
           ...hashPassword(password),
           createdAt: now(),
         };
@@ -665,9 +707,28 @@ export function createApi({ store = createStore() } = {}) {
         D.sessions = D.sessions.filter((s) => s !== session);
         db.save();
         return { ok: true };
-      }),
+      }, { self: true }),
 
-      route("GET", "/api/auth/me", "user", ({ user }) => ({ user: publicUser(user) })),
+      route("GET", "/api/auth/me", "user", ({ user }) => ({ user: publicUser(user), node: nodeByKey(node) })),
+
+      // ---------------- nodes
+      route("GET", "/api/nodes", "public", () => ({ nodes: NODES, main: MAIN_NODE })),
+
+      // Super Admin: how many accounts and vehicles each node has
+      route("GET", "/api/nodes/summary", "admin", async ({ user, storeFor }) => {
+        if (!user.superAdmin) fail(403, "Only the Super Admin can see every node.");
+        const nodes = await Promise.all(
+          NODES.map(async (n) => {
+            try {
+              const { data } = await storeFor(n.key).load();
+              return { ...n, accounts: data.users?.length ?? 0, vehicles: data.vehicles?.length ?? 0 };
+            } catch {
+              return { ...n, accounts: null, vehicles: null };
+            }
+          })
+        );
+        return { nodes };
+      }),
 
       // Change your own username and/or display name
       route("PATCH", "/api/auth/me", "user", ({ user, body }) => {
@@ -685,7 +746,7 @@ export function createApi({ store = createStore() } = {}) {
         Object.assign(user, changes);
         db.save();
         return { user: publicUser(user) };
-      }),
+      }, { self: true }),
 
       route("POST", "/api/auth/password", "user", ({ user, session, body }) => {
         if (!verifyPassword(body.currentPassword ?? "", user)) {
@@ -696,7 +757,7 @@ export function createApi({ store = createStore() } = {}) {
         D.sessions = D.sessions.filter((s) => s.userId !== user.id || s === session);
         db.save();
         return { ok: true };
-      }),
+      }, { self: true }),
 
       // ---------------- accounts (admin only)
       route("GET", "/api/users", "admin", () => ({
@@ -729,6 +790,7 @@ export function createApi({ store = createStore() } = {}) {
       route("PATCH", "/api/users/:id", "admin", ({ params, body, user: me }) => {
         const target = findUser(params.id);
         if (!target) fail(404, "Account not found.");
+        if (target.superAdmin && !me.superAdmin) fail(403, "Only the Super Admin can change this account.");
         const changes = {};
         if ("username" in body) {
           changes.username = cleanUsername(body.username);
@@ -775,6 +837,7 @@ export function createApi({ store = createStore() } = {}) {
       route("DELETE", "/api/users/:id", "admin", ({ params, query, user: me }) => {
         const target = findUser(params.id);
         if (!target) fail(404, "Account not found.");
+        if (target.superAdmin) fail(403, "The Super Admin account can't be deleted.");
         if (target.id === me.id) fail(400, "You can't delete your own account.");
         if (target.role === "admin" && adminCount() <= 1) {
           fail(400, "There must always be at least one administrator.");
@@ -866,6 +929,7 @@ export function createApi({ store = createStore() } = {}) {
       // name ("3SG Jungwoo" can join "3SG Chong_3SG Kim Jungwoo"); otherwise an
       // Admin has to add you on the Accounts page.
       route("POST", "/api/sheets/claim", "user", ({ user, body }) => {
+        if (user.visiting) fail(400, "Worksheets are claimed by the node's own accounts.");
         const sheet = (D.sheets ?? []).find((s) => sheetKey(s.name) === sheetKey(body.sheet));
         if (!sheet) fail(404, "That worksheet isn't in the last import. Ask an Admin to import the workbook again.");
         const others = sheetUsers(sheet.name).filter((u) => u.id !== user.id);
@@ -883,6 +947,7 @@ export function createApi({ store = createStore() } = {}) {
 
       // Stop managing a sheet (its vehicles stay with whoever owns them)
       route("POST", "/api/sheets/leave", "user", ({ user, body }) => {
+        if (user.visiting) fail(400, "Worksheets are claimed by the node's own accounts.");
         if (!linksSheet(user, body.sheet)) fail(404, "That sheet isn't linked to your account.");
         user.sheets = (user.sheets ?? []).filter((s) => sheetKey(s) !== sheetKey(body.sheet));
         // vehicles you owned from that sheet go to someone still sharing it, or Unassigned
@@ -1289,7 +1354,7 @@ export function createApi({ store = createStore() } = {}) {
       }),
     ];
 
-    return { routes, D, isDirty: () => dirty, sessionFor };
+    return { routes, D, isDirty: () => dirty, sessionFor, visitingSuperAdmin, superLogin, publicUser, node };
   }
 
   // ---- the request handler
@@ -1314,9 +1379,32 @@ export function createApi({ store = createStore() } = {}) {
       const body = ["POST", "PATCH", "PUT", "DELETE"].includes(req.method) ? await readBody(req) : {};
       const ip = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim() || req.socket?.remoteAddress || "";
 
+      // Which node this request is for (the browser sends it with every request)
+      const asked = String(req.headers["x-fleet-node"] ?? url.searchParams.get("node") ?? "").trim().toLowerCase();
+      let node = asked ? nodeByKey(asked)?.key : MAIN_NODE;
+      if (!node) fail(400, `Unknown node "${asked}".`);
+      const mainStore = store.forNode ? store.forNode(MAIN_NODE) : store;
+      const storeFor = (key) => (key === MAIN_NODE || !store.forNode ? mainStore : store.forNode(key));
+      const isRoute = (method, path) => req.method === method && url.pathname.replace(/\/$/, "") === path;
+
+      // A Super Admin logging in from another node's page: their account is
+      // in the main node, so the login (and its session) happens there
+      if (node !== MAIN_NODE && isRoute("POST", "/api/auth/login")) {
+        const main = openApp((await mainStore.load()).data, { node: MAIN_NODE });
+        if (main.superLogin(body.username, body.password)) node = MAIN_NODE;
+      }
+
+      // Super Admin in another node: their session is in the main node
+      const superAuth = async () => {
+        const main = openApp((await mainStore.load()).data, { node: MAIN_NODE });
+        const found = main.sessionFor(req);
+        return found?.user.superAdmin ? found : null;
+      };
+
       for (let attempt = 1; ; attempt += 1) {
-        const { data, version } = await store.load();
-        const app = openApp(data);
+        const nodeStore = storeFor(node);
+        const { data, version } = await nodeStore.load();
+        const app = openApp(data, { node });
 
         let match = null;
         const r = app.routes.find((candidate) => {
@@ -1331,7 +1419,18 @@ export function createApi({ store = createStore() } = {}) {
           params[key] = decodeURIComponent(match[i + 1]);
         });
 
-        const auth = r.auth === "public" ? null : app.sessionFor(req);
+        let auth = r.auth === "public" ? null : app.sessionFor(req);
+        if (r.auth !== "public" && !auth && node !== MAIN_NODE) {
+          const sup = await superAuth();
+          if (sup) {
+            // log out / own name / own password: those are in the main node
+            if (r.options.self) {
+              node = MAIN_NODE;
+              continue;
+            }
+            auth = { session: sup.session, user: app.visitingSuperAdmin(sup.user) };
+          }
+        }
         if (r.auth !== "public" && !auth) fail(401, "Please log in again.");
         if (r.auth === "admin" && auth.user.role !== "admin") {
           fail(403, "Only an administrator can do that.");
@@ -1348,11 +1447,13 @@ export function createApi({ store = createStore() } = {}) {
           user: auth?.user,
           session: auth?.session,
           ip,
-          store,
+          store: nodeStore,
+          node,
+          storeFor,
         });
 
         if (app.isDirty()) {
-          const saved = await store.save(app.D, version);
+          const saved = await nodeStore.save(app.D, version);
           if (!saved) {
             if (attempt < MAX_ATTEMPTS) {
               await backOff(attempt);
@@ -1361,7 +1462,7 @@ export function createApi({ store = createStore() } = {}) {
             fail(409, "Someone else was saving at the same moment. Please try again.");
           }
           if (before) {
-            await store.saveSnapshot(r.options.snapshot, before).catch((err) => {
+            await nodeStore.saveSnapshot(r.options.snapshot, before).catch((err) => {
               console.error("[fleet-api] could not keep a copy for undo:", err.message);
             });
           }

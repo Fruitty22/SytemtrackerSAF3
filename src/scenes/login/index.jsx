@@ -25,6 +25,7 @@ import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutli
 import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
 import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import { themeSettings, tokens } from "../../theme";
+import { MAIN_NODE } from "../../../shared/nodes.js";
 import { useAuth } from "../../auth/AuthContext";
 import { api } from "../../api/client";
 
@@ -257,10 +258,11 @@ const Login = () => {
   const darkTheme = useMemo(() => createTheme(themeSettings("dark")), []);
   const accent = darkTheme.palette.secondary.main;
 
-  const { login, signup } = useAuth();
+  const { login, signup, node, leaveNode } = useAuth();
 
   const [tab, setTab] = useState("login");
   const [isFirstAccount, setIsFirstAccount] = useState(false);
+  const [emptyNode, setEmptyNode] = useState(false); // a node nobody has set up yet
   const [signupOpen, setSignupOpen] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -272,11 +274,15 @@ const Login = () => {
   // with no accounts yet, open on "Sign up" (the first account becomes admin)
   useEffect(() => {
     api("/auth/status")
-      .then(({ hasUsers, signupOpen: open }) => {
+      .then(({ hasUsers, signupOpen: open, node: statusNode }) => {
         setSignupOpen(open !== false);
-        if (!hasUsers) {
+        // only the main node's very first account becomes Admin; other
+        // nodes are set up by the Super Admin
+        if (!hasUsers && (statusNode?.key ?? MAIN_NODE) === MAIN_NODE) {
           setIsFirstAccount(true);
           setTab("signup");
+        } else if (!hasUsers) {
+          setEmptyNode(true);
         }
       })
       .catch((err) => setError(err.message));
@@ -548,6 +554,43 @@ const Login = () => {
                 </Typography>
               </Box>
 
+              {/* which node this login is for */}
+              {node && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2, flexWrap: "wrap" }}>
+                  <Box
+                    sx={{
+                      px: 1.5,
+                      py: 0.5,
+                      borderRadius: "999px",
+                      fontWeight: 800,
+                      letterSpacing: "0.08em",
+                      fontSize: 13,
+                      color: "#fff",
+                      backgroundColor: alpha(accent, 0.22),
+                      border: `1px solid ${alpha(accent, 0.6)}`,
+                    }}
+                  >
+                    NODE: {node.name}
+                  </Box>
+                  <Box
+                    component="button"
+                    type="button"
+                    onClick={leaveNode}
+                    sx={{
+                      background: "none",
+                      border: 0,
+                      p: 0,
+                      cursor: "pointer",
+                      color: "rgba(255,255,255,0.75)",
+                      fontSize: 13,
+                      textDecoration: "underline",
+                      "&:hover": { color: "#fff" },
+                    }}
+                  >
+                    Change node
+                  </Box>
+                </Box>
+              )}
               <Typography
                 variant="h2"
                 sx={{ fontWeight: 800, color: "#fff", fontSize: { xs: 28, sm: 34 }, letterSpacing: "-0.01em" }}
@@ -555,7 +598,9 @@ const Login = () => {
                 {tab === "login" ? "Welcome back" : "Create your account"}
               </Typography>
               <Typography sx={{ color: "rgba(255,255,255,0.7)", mt: 0.75, mb: 2.5, fontSize: 14.5 }}>
-                {tab === "login" ? "Log in to your fleet dashboard." : "It takes less than a minute."}
+                {tab === "login"
+                  ? `Log in to ${node ? `the ${node.name}` : "your"} fleet dashboard.`
+                  : "It takes less than a minute."}
               </Typography>
 
               {/* Log in / Sign up switch */}
@@ -599,6 +644,11 @@ const Login = () => {
 
               {tab === "login" ? (
                 <Box component="form" onSubmit={handleLogin} sx={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {emptyNode && (
+                    <Alert severity="info">
+                      This node has no accounts yet. The Super Admin logs in here to set it up and create its Admin.
+                    </Alert>
+                  )}
                   <Field
                     icon={PersonOutlinedIcon}
                     label="Username"

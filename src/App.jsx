@@ -8,6 +8,7 @@ import { canOpen, navItems } from "./navigation";
 import Topbar from "./scenes/global/Topbar";
 import Sidebar from "./scenes/global/Sidebar";
 import Login from "./scenes/login";
+import NodePicker from "./scenes/nodes";
 import Vehicles from "./scenes/vehicles";
 import Serviceable from "./scenes/serviceable";
 import Maintenance from "./scenes/maintenance";
@@ -85,7 +86,7 @@ const Pages = () => {
 
 function App() {
   const [theme, colorMode] = useMode();
-  const { user, checking } = useAuth();
+  const { user, checking, node } = useAuth();
 
   let content;
   if (checking) {
@@ -94,8 +95,10 @@ function App() {
         <CircularProgress color="secondary" />
       </Box>
     );
+  } else if (!user && !node) {
+    content = <NodePicker />;
   } else if (!user) {
-    content = <Login />;
+    content = <Login key={node.key} />;
   } else {
     content = (
       <div className="app">
@@ -103,10 +106,10 @@ function App() {
         <main className="content">
           <Topbar />
           {/* key: a different account starts with fresh pages */}
-          <Pages key={user.id} />
+          <Pages key={`${node?.key}-${user.id}`} />
         </main>
         {/* the AI assistant: a chat button on every page */}
-        <Assistant key={`assistant-${user.id}`} />
+        <Assistant key={`assistant-${node?.key}-${user.id}`} />
       </div>
     );
   }

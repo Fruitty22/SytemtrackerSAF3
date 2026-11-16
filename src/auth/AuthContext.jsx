@@ -1,10 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, tokenStore } from "../api/client";
+import { api, nodeStore, tokenStore } from "../api/client";
+import { MAIN_NODE, nodeByKey } from "../../shared/nodes.js";
+
+// logged in before nodes existed: that login was for KTN
+if (tokenStore.get() && !nodeStore.get()) nodeStore.set(MAIN_NODE);
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  // the node this browser is in (null = show the node picker)
+  const [node, setNode] = useState(() => nodeByKey(nodeStore.get()));
   // true while we check a saved login with the server
   const [checking, setChecking] = useState(() => !!tokenStore.get());
 
@@ -85,9 +91,35 @@ export function AuthProvider({ children }) {
     setUser(fresh);
   }, []);
 
+  // Node picker (before logging in): remember the node, show its login page
+  const chooseNode = useCallback((key) => {
+    nodeStore.set(key);
+    setNode(nodeByKey(key));
+  }, []);
+
+  // Back to the node picker. A node's own account is logged out (it only
+  // exists in that node); the Super Admin stays logged in.
+  const leaveNode = useCallback(() => {
+    if (user && !user.superAdmin) tokenStore.set(null);
+    nodeStore.set(null);
+    window.location.assign("/");
+  }, [user]);
+
+  // Super Admin: go to another node (same login). The page reloads so every
+  // list is read again from that node.
+  const switchNode = useCallback((key) => {
+    nodeStore.set(key);
+    window.location.assign("/");
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
+      node,
+      chooseNode,
+      leaveNode,
+      switchNode,
+      isSuperAdmin: !!user?.superAdmin,
       updateProfile,
       reloadUser,
       claimSheet,
@@ -98,7 +130,7 @@ export function AuthProvider({ children }) {
       logout,
       changePassword,
     }),
-    [user, checking, login, signup, logout, changePassword, updateProfile, reloadUser, claimSheet]
+    [user, node, chooseNode, leaveNode, switchNode, checking, login, signup, logout, changePassword, updateProfile, reloadUser, claimSheet]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

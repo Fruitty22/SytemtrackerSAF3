@@ -6,10 +6,21 @@ import { DEPLOY_LABELS, DEPLOYED_FIELDS, SCHEDULE_KINDS } from "../shared/config
 export const HELP_GUIDE = `
 # Fleet Admin Dashboard - user guide
 
+## Nodes
+- The site has separate nodes: KTN, KRANJI, MANDAI HILL, LTC, HQ, ALPHA, CHARLIE, CSC. Each node has its own
+  accounts, vehicles, Excel imports, criteria, disregards, bookings, Remove all and Undo. Nobody in one node can
+  see another node.
+- First page: pick your node, then log in. The node is shown at the top of every page.
+- Change node: menu at the top right (person icon) -> Change node (you log in again in the other node).
+- The Super Admin (the "admin" account in KTN) can enter every node: click the node name at the top -> pick a node.
+  The Super Admin sets up a new node by entering it and creating its Admin on the Accounts page.
+
 ## Accounts and roles
-- Admin: sees every vehicle and every page, imports the Excel files, manages accounts and criteria.
+- Super Admin: the "admin" account in KTN; an Admin in every node and can switch between nodes.
+- Admin: sees every vehicle and every page of their own node, imports the Excel files, manages accounts and criteria.
 - Fleet Commander: sees and edits only the vehicles of their own worksheet(s).
-- Sign up: the first account ever created becomes the Admin; everyone after is a Fleet Commander.
+- Sign up: in KTN the first account ever created became the Admin; everyone who signs up is a Fleet Commander.
+  A node's Admins are created by the Super Admin (Accounts page -> Add account -> Role: Admin).
 - Menu at the top right (person icon): My account (change display name / username), Change password,
   My worksheet (claim your sheet), Log out.
 - On a phone, the sidebar is hidden: tap the ☰ button at the top left to open the menu.

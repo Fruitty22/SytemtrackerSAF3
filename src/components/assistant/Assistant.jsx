@@ -149,12 +149,12 @@ const ActionCard = ({ action, onConfirm, onCancel }) => {
 };
 
 const Assistant = () => {
-  const { user } = useAuth();
+  const { user, node } = useAuth();
   const { refresh } = useVehicles();
   const { pathname } = useLocation();
   const phone = useMediaQuery("(max-width:600px)");
   const [open, setOpen] = useState(false);
-  const storeKey = `${STORE_KEY}.${user.id}`;
+  const storeKey = `${STORE_KEY}.${node?.key ?? "ktn"}.${user.id}`;
   const [items, setItems] = useState(() => load(storeKey)); // [{ role, content, actions? }]
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);

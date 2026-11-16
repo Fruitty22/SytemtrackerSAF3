@@ -22,6 +22,11 @@ import TableChartOutlinedIcon from "@mui/icons-material/TableChartOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
 import CloseOutlinedIcon from "@mui/icons-material/CloseOutlined";
+import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import CheckIcon from "@mui/icons-material/Check";
+import { api } from "../../api/client";
+import { NODES } from "../../../shared/nodes.js";
 import { NavList } from "./Sidebar";
 import { ColorModeContext, tokens } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
@@ -33,7 +38,16 @@ const Topbar = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   const colorMode = useContext(ColorModeContext);
-  const { user, logout } = useAuth();
+  const { user, logout, node, switchNode, leaveNode } = useAuth();
+  const [nodeAnchor, setNodeAnchor] = useState(null); // Super Admin's node menu
+  const [nodeCounts, setNodeCounts] = useState({}); // key -> { accounts, vehicles }
+
+  const openNodes = (event) => {
+    setNodeAnchor(event.currentTarget);
+    api("/nodes/summary")
+      .then((d) => setNodeCounts(Object.fromEntries(d.nodes.map((n) => [n.key, n]))))
+      .catch(() => {});
+  };
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -76,6 +90,64 @@ const Topbar = () => {
         </Typography>
       </Box>
       <Box sx={{ flex: 1 }} />
+      {/* which node you're in; the Super Admin can switch here */}
+      {node && (
+        <Button
+          size="small"
+          variant="outlined"
+          color="secondary"
+          startIcon={<HubOutlinedIcon />}
+          endIcon={user.superAdmin ? <ExpandMoreIcon /> : null}
+          onClick={user.superAdmin ? openNodes : undefined}
+          disableRipple={!user.superAdmin}
+          aria-label={user.superAdmin ? `Node ${node.name} - switch node` : `Node ${node.name}`}
+          sx={{
+            fontWeight: 800,
+            letterSpacing: "0.06em",
+            whiteSpace: "nowrap",
+            cursor: user.superAdmin ? "pointer" : "default",
+            mr: { xs: 0, sm: 1 },
+            "& .MuiButton-startIcon": { display: { xs: "none", sm: "inherit" } },
+          }}
+        >
+          {node.name}
+        </Button>
+      )}
+      <Menu
+        anchorEl={nodeAnchor}
+        open={!!nodeAnchor}
+        onClose={() => setNodeAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Typography variant="caption" sx={{ px: 2, py: 0.5, display: "block", opacity: 0.7 }}>
+          Super Admin: switch node
+        </Typography>
+        {NODES.map((n) => {
+          const c = nodeCounts[n.key];
+          return (
+            <MenuItem
+              key={n.key}
+              selected={n.key === node?.key}
+              onClick={() => {
+                setNodeAnchor(null);
+                if (n.key !== node?.key) switchNode(n.key);
+              }}
+              sx={{ minWidth: 240 }}
+            >
+              <ListItemIcon>{n.key === node?.key ? <CheckIcon fontSize="small" /> : null}</ListItemIcon>
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontWeight: 700 }}>{n.name}</Typography>
+                {c && c.accounts !== null && (
+                  <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                    {c.accounts} account(s) · {c.vehicles} vehicle(s)
+                  </Typography>
+                )}
+              </Box>
+            </MenuItem>
+          );
+        })}
+      </Menu>
       <IconButton
         onClick={colorMode.toggleColorMode}
         title="Switch light / dark mode"
@@ -147,6 +219,19 @@ const Topbar = () => {
           </ListItemIcon>
           Change password
         </MenuItem>
+        {!user.superAdmin && (
+          <MenuItem
+            onClick={() => {
+              setMenuAnchor(null);
+              leaveNode(); // back to the node picker (logs out of this node)
+            }}
+          >
+            <ListItemIcon>
+              <HubOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            Change node
+          </MenuItem>
+        )}
         <MenuItem
           onClick={() => {
             setMenuAnchor(null);

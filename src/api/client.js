@@ -1,5 +1,24 @@
 // Small wrapper around fetch() for talking to the fleet API (server/api.js).
 const TOKEN_KEY = "fleet.token";
+const NODE_KEY = "fleet.node"; // which node (shared/nodes.js) this browser is in
+
+export const nodeStore = {
+  get() {
+    try {
+      return localStorage.getItem(NODE_KEY);
+    } catch {
+      return null;
+    }
+  },
+  set(key) {
+    try {
+      if (key) localStorage.setItem(NODE_KEY, key);
+      else localStorage.removeItem(NODE_KEY);
+    } catch {
+      /* storage blocked */
+    }
+  },
+};
 
 export const tokenStore = {
   get() {
@@ -30,6 +49,8 @@ export async function api(path, { method = "GET", body } = {}) {
   const token = tokenStore.get();
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  const node = nodeStore.get();
+  if (node) headers["X-Fleet-Node"] = node;
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
   let res;
