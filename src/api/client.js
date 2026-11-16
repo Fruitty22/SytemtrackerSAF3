@@ -45,6 +45,29 @@ export class ApiError extends Error {
   }
 }
 
+// A request that hasn't answered after this long is given up (and a read is
+// tried once more), so a page never sits on its loading bars forever.
+const TIMEOUT_MS = 20000;
+
+async function send(path, method, headers, body) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    return await fetch(`/api${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+      signal: ctrl.signal,
+    });
+  } catch (err) {
+    if (err?.name === "AbortError") throw new ApiError("The server took too long to answer. Please try again.", 0);
+    throw new ApiError("Can't reach the server. Check your connection and try again.", 0);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function api(path, { method = "GET", body } = {}) {
   const token = tokenStore.get();
   const headers = {};
@@ -55,13 +78,12 @@ export async function api(path, { method = "GET", body } = {}) {
 
   let res;
   try {
-    res = await fetch(`/api${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch {
-    throw new ApiError("Can't reach the server. Is `npm run dev` still running?", 0);
+    res = await send(path, method, headers, body);
+    // a read that failed on the server's side (e.g. a slow start) is tried once more
+    if (method === "GET" && res.status >= 500) res = await send(path, method, headers, body);
+  } catch (err) {
+    if (method !== "GET") throw err;
+    res = await send(path, method, headers, body); // reads are safe to try again
   }
 
   const data = await res.json().catch(() => ({}));

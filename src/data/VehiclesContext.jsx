@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { DEFAULT_VEHICLE_TYPES } from "../../shared/config.js";
@@ -24,13 +24,22 @@ export function VehiclesProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const refresh = useCallback(async () => {
+  // Only the newest reload may update the page: an older one that answers
+  // late is ignored, and "loading" always ends with the newest one.
+  const latest = useRef(0);
+  const inFlight = useRef(false);
+  // { soft: true } = only if nothing is loading right now (page opened, first load)
+  const refresh = useCallback(async ({ soft = false } = {}) => {
     if (!user) return;
+    if (soft && inFlight.current) return;
+    const mine = ++latest.current;
+    inFlight.current = true;
     setLoading(true);
     setError("");
     try {
       // one request for everything (see /api/bootstrap)
       const all = await api("/bootstrap");
+      if (mine !== latest.current) return;
       const vehicleData = all;
       const userData = all;
       const disregardData = all;
@@ -46,14 +55,17 @@ export function VehiclesProvider({ children }) {
       setDisregards(disregardData.disregards);
       setDisregardsUpdated(disregardData.updated ?? {});
     } catch (err) {
-      setError(err.message);
+      if (mine === latest.current) setError(err.message);
     } finally {
-      setLoading(false);
+      if (mine === latest.current) {
+        setLoading(false);
+        inFlight.current = false;
+      }
     }
   }, [user]);
 
   useEffect(() => {
-    if (user) refresh();
+    if (user) refresh({ soft: true });
     else {
       setVehicles([]);
       setUsers([]);

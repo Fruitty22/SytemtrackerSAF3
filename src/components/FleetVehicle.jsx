@@ -1,5 +1,5 @@
-// The drawn light utility vehicle and the little animations, shared by the
-// login page and the node picker (the first page).
+// The drawn vehicles (light utility vehicle on the login page, 5-ton truck on
+// the node picker) and the little animations they share.
 import { Box, keyframes } from "@mui/material";
 
 // ---------- little animations (all switched off for people who prefer less motion) ----------
@@ -33,20 +33,21 @@ const wheelSpinSx = {
   ...noMotion,
 };
 
-const Wheel = ({ cx }) => (
+// r = tyre size; rim = gradient id; bolts = how many wheel nuts
+const Wheel = ({ cx, cy = 168, r = 38, rim = "lv-rim", bolts = 5, tread = "7 5" }) => (
   <g>
-    <circle cx={cx} cy={168} r={38} fill="#15171c" />
-    <circle cx={cx} cy={168} r={31} fill="none" stroke="#2a2e37" strokeWidth={2} />
+    <circle cx={cx} cy={cy} r={r} fill="#15171c" />
+    <circle cx={cx} cy={cy} r={r * 0.82} fill="none" stroke="#2a2e37" strokeWidth={2} />
     {/* the part that turns: tread blocks, rim, bolts */}
     <Box component="g" sx={wheelSpinSx}>
-      <circle cx={cx} cy={168} r={35.5} fill="none" stroke="#0b0c10" strokeWidth={5} strokeDasharray="7 5" />
-      <circle cx={cx} cy={168} r={23} fill="url(#lv-rim)" />
-      <circle cx={cx} cy={168} r={15} fill="#8a909a" />
-      {[0, 1, 2, 3, 4].map((i) => {
-        const a = ((i * 72 - 90) * Math.PI) / 180;
-        return <circle key={i} cx={cx + 9.5 * Math.cos(a)} cy={168 + 9.5 * Math.sin(a)} r={2.2} fill="#3a3f48" />;
+      <circle cx={cx} cy={cy} r={r - 2.5} fill="none" stroke="#0b0c10" strokeWidth={5} strokeDasharray={tread} />
+      <circle cx={cx} cy={cy} r={r * 0.6} fill={`url(#${rim})`} />
+      <circle cx={cx} cy={cy} r={r * 0.4} fill="#8a909a" />
+      {Array.from({ length: bolts }, (_, i) => {
+        const a = ((i * (360 / bolts) - 90) * Math.PI) / 180;
+        return <circle key={i} cx={cx + r * 0.25 * Math.cos(a)} cy={cy + r * 0.25 * Math.sin(a)} r={2.2} fill="#3a3f48" />;
       })}
-      <circle cx={cx} cy={168} r={4} fill="#3a3f48" />
+      <circle cx={cx} cy={cy} r={4} fill="#3a3f48" />
     </Box>
   </g>
 );
@@ -154,5 +155,126 @@ export const LightUtilityVehicle = () => (
     <circle cx="470" cy="125" r="14" fill="#ffe9a8" opacity="0.4" filter="url(#lv-soft)" />
     <rect x="462" y="120" width="14" height="9" rx="3" fill="#fff7dd" />
     <rect x="462" y="131" width="12" height="4" rx="2" fill="#ffa04a" />
+  </Box>
+);
+
+// ---------- the drawn 5-ton truck: canvas-covered cargo body, bonneted cab, 6x6, driving to the right ----------
+export const FiveTonTruck = () => (
+  <Box
+    component="svg"
+    viewBox="0 0 560 220"
+    aria-hidden="true"
+    focusable="false"
+    sx={{ display: "block", width: "100%", height: "auto", overflow: "visible" }}
+  >
+    <defs>
+      <linearGradient id="ft-body" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#7e8e6c" />
+        <stop offset="0.55" stopColor="#5d6e50" />
+        <stop offset="1" stopColor="#445237" />
+      </linearGradient>
+      <linearGradient id="ft-canvas" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#808a66" />
+        <stop offset="1" stopColor="#58613f" />
+      </linearGradient>
+      <linearGradient id="ft-bed" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#4f5d40" />
+        <stop offset="1" stopColor="#3a4530" />
+      </linearGradient>
+      <linearGradient id="ft-glass" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#bfd3e0" />
+        <stop offset="1" stopColor="#5a7285" />
+      </linearGradient>
+      <linearGradient id="ft-rim" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#7d8a6c" />
+        <stop offset="1" stopColor="#4a5640" />
+      </linearGradient>
+      <linearGradient id="ft-beam" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#fff1c9" stopOpacity="0.6" />
+        <stop offset="1" stopColor="#fff1c9" stopOpacity="0" />
+      </linearGradient>
+      <filter id="ft-soft" x="-20%" y="-60%" width="140%" height="220%">
+        <feGaussianBlur stdDeviation="5" />
+      </filter>
+    </defs>
+
+    {/* shadow on the road */}
+    <ellipse cx="280" cy="208" rx="250" ry="7" fill="#000" opacity="0.4" filter="url(#ft-soft)" />
+
+    {/* headlight beam */}
+    <Box
+      component="path"
+      d="M508 120 L625 90 L625 156 L508 132 Z"
+      fill="url(#ft-beam)"
+      sx={{ animation: `${glow} 3.5s ease-in-out infinite`, ...noMotion }}
+    />
+
+    {/* chassis rail */}
+    <rect x="34" y="140" width="476" height="18" rx="5" fill="#1b1e24" />
+
+    {/* canvas canopy over the cargo bed, with its bows and tie-down rope */}
+    <path d="M34 112 V40 Q34 22 52 22 H282 Q300 22 300 40 V112 Z" fill="url(#ft-canvas)" />
+    <path d="M34 40 Q34 22 52 22 H282 Q300 22 300 40" fill="none" stroke="#fff" strokeOpacity="0.25" strokeWidth="1.2" />
+    <path d="M92 24 V110 M150 24 V110 M208 24 V110 M262 24 V110" stroke="#000" strokeOpacity="0.16" strokeWidth="2" />
+    <path d="M40 30 Q60 46 40 62 M40 66 V108" stroke="#000" strokeOpacity="0.14" strokeWidth="1.4" fill="none" />
+    <path d="M36 106 H298" stroke="#2f3626" strokeWidth="2" strokeDasharray="10 6" />
+
+    {/* cargo bed (drop sides) */}
+    <rect x="30" y="110" width="274" height="34" rx="3" fill="url(#ft-bed)" />
+    <path d="M32 122 H302 M32 133 H302" stroke="#000" strokeOpacity="0.22" strokeWidth="1.2" />
+    <path d="M98 111 V143 M168 111 V143 M236 111 V143" stroke="#000" strokeOpacity="0.3" strokeWidth="2" />
+    {/* tail light and rear bumper */}
+    <rect x="26" y="116" width="5" height="16" rx="2" fill="#d9413c" />
+    <rect x="22" y="142" width="20" height="10" rx="3" fill="#1b1e24" />
+
+    {/* exhaust stack behind the cab */}
+    <rect x="303" y="28" width="7" height="86" rx="3" fill="#2a2d33" />
+    <rect x="301" y="24" width="11" height="7" rx="2" fill="#1d2025" />
+
+    {/* cab and bonnet */}
+    <path
+      d="M314 46 Q314 38 322 38 H392 Q400 38 402 46 L412 100 H498 Q510 100 512 112 L514 146 H314 Z"
+      fill="url(#ft-body)"
+    />
+    <path d="M314 46 Q314 38 322 38 H392 Q400 38 402 46 L412 100 H498 Q510 100 512 112" fill="none" stroke="#fff" strokeOpacity="0.3" strokeWidth="1.2" />
+    {/* roof hatch */}
+    <rect x="336" y="32" width="34" height="7" rx="2" fill="#3b4632" />
+    {/* side window */}
+    <path d="M324 50 H390 L398 94 H324 Z" fill="url(#ft-glass)" stroke="#1d2127" strokeWidth="3" strokeLinejoin="round" />
+    <path d="M346 50 H360 L338 94 H324 V76 Z" fill="#fff" opacity="0.22" />
+    {/* door, handle, step */}
+    <path d="M320 100 V144 M404 100 V144" stroke="#000" strokeOpacity="0.25" strokeWidth="1.4" />
+    <rect x="384" y="106" width="14" height="4" rx="2" fill="#20242b" />
+    <rect x="384" y="150" width="20" height="4" rx="2" fill="#20242b" />
+    {/* mirror */}
+    <path d="M400 58 L414 54" stroke="#1d2127" strokeWidth="2.5" strokeLinecap="round" />
+    <rect x="412" y="42" width="7" height="24" rx="2" fill="#1d2127" />
+    {/* bonnet vents */}
+    <path d="M436 108 H486 M436 114 H486 M436 120 H486" stroke="#000" strokeOpacity="0.22" strokeWidth="1.6" strokeLinecap="round" />
+    {/* grille */}
+    <rect x="504" y="104" width="10" height="34" rx="2" fill="#1d2127" />
+    <path d="M506 110 H512 M506 116 H512 M506 122 H512 M506 128 H512" stroke="#444a52" strokeWidth="1.4" />
+    {/* fuel tank under the cab */}
+    <rect x="324" y="144" width="54" height="22" rx="7" fill="#2b3027" />
+    <path d="M330 150 H372" stroke="#fff" strokeOpacity="0.12" strokeWidth="2" strokeLinecap="round" />
+
+    {/* wheel arches, then the wheels: two at the back, one at the front */}
+    <path d="M76 170 A44 44 0 0 1 164 170 Z" fill="#101216" />
+    <path d="M162 170 A44 44 0 0 1 250 170 Z" fill="#101216" />
+    <path d="M404 170 A46 46 0 0 1 496 170 Z" fill="#101216" />
+    <Wheel cx={120} cy={170} r={36} rim="ft-rim" bolts={8} tread="6 4" />
+    <Wheel cx={206} cy={170} r={36} rim="ft-rim" bolts={8} tread="6 4" />
+    <Wheel cx={450} cy={170} r={36} rim="ft-rim" bolts={8} tread="6 4" />
+    {/* front mudguard */}
+    <path d="M402 134 Q406 120 450 120 Q494 120 500 134" fill="none" stroke="#2f3828" strokeWidth="5" strokeLinecap="round" />
+
+    {/* front bumper and tow hook */}
+    <rect x="496" y="138" width="26" height="14" rx="3" fill="#14161b" />
+    <path d="M512 152 V158 Q512 162 516 162" fill="none" stroke="#c0392b" strokeWidth="3" strokeLinecap="round" />
+
+    {/* headlight */}
+    <circle cx="508" cy="126" r="14" fill="#ffe9a8" opacity="0.4" filter="url(#ft-soft)" />
+    <rect x="500" y="120" width="13" height="10" rx="3" fill="#fff7dd" />
+    <rect x="500" y="132" width="11" height="4" rx="2" fill="#ffa04a" />
   </Box>
 );

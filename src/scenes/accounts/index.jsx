@@ -321,6 +321,14 @@ const Accounts = () => {
   const [reassignTo, setReassignTo] = useState("");
   const [deletedReload, setDeletedReload] = useState(0);
 
+  // Each time this page is shown (pages are kept alive in the background):
+  // if the list never arrived, load it again instead of waiting forever.
+  // There is always at least one account (yours), so an empty list = not loaded.
+  useEffect(() => {
+    if (users.length === 0) refresh({ soft: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const columns = useMemo(
     () => [
       { field: "name", headerName: "Display name", flex: 1, minWidth: 160 },
@@ -427,7 +435,15 @@ const Accounts = () => {
         account from the Sign up tab on the login screen.
       </Alert>
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert
+          severity="error"
+          sx={{ mb: 2 }}
+          action={
+            <Button color="inherit" size="small" onClick={() => refresh()}>
+              Try again
+            </Button>
+          }
+        >
           {error}
         </Alert>
       )}
@@ -436,7 +452,9 @@ const Accounts = () => {
         <DataGrid
           rows={users}
           columns={columns}
-          loading={loading}
+          // loading bars only before the first list arrives; a reload in the
+          // background keeps the accounts on screen
+          loading={loading && users.length === 0}
           density="compact"
           showToolbar
           disableRowSelectionOnClick

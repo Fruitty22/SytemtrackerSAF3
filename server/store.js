@@ -187,12 +187,23 @@ export function supabaseStore({ url, key, table = "fleet_store", fetchImpl = glo
 
   async function call(method, query, body, prefer) {
     let res;
-    try {
-      res = await fetchImpl(`${base}?${query}`, {
+    // Supabase normally answers in well under a second; a call that hangs is
+    // given up after a while (a read is tried once more) rather than leaving
+    // the page waiting
+    const attempt = () =>
+      fetchImpl(`${base}?${query}`, {
         method,
         headers: prefer ? { ...headers, Prefer: prefer } : headers,
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(method === "GET" ? 8000 : 15000),
       });
+    try {
+      try {
+        res = await attempt();
+      } catch (first) {
+        if (method !== "GET") throw first;
+        res = await attempt();
+      }
     } catch (cause) {
       console.error("[fleet-db] could not reach Supabase:", cause.message);
       const err = new Error(`Database error: can't reach ${url} - check SUPABASE_URL (it should look like https://abcdefgh.supabase.co).`);

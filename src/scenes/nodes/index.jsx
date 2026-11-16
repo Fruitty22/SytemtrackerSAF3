@@ -4,7 +4,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { tokens } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
 import { NODES } from "../../../shared/nodes.js";
-import { LightUtilityVehicle, drift, noMotion, rise, roll } from "../../components/FleetVehicle";
+import { FiveTonTruck, drift, noMotion, rise, roll } from "../../components/FleetVehicle";
 
 // The card is always the dark "night" look, like the login page
 const d = tokens("dark");
@@ -162,9 +162,9 @@ const NodePicker = () => {
               </Typography>
             </Box>
 
-            {/* the vehicle stands on the road line (hidden on small phones to keep the tiles in view) */}
+            {/* the 5-ton truck stands on the road line (hidden on small phones to keep the tiles in view) */}
             <Box sx={{ display: { xs: "none", sm: "block" }, mb: "9px", maxWidth: { sm: 420, md: "none" } }}>
-              <LightUtilityVehicle />
+              <FiveTonTruck />
             </Box>
           </Box>
 
