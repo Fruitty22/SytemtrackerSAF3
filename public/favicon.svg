@@ -1,21 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- the same badge as the ARGUS name on the site: blue-to-green square, white eye -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#6870fa"/>
       <stop offset="1" stop-color="#3da58a"/>
     </linearGradient>
-    <radialGradient id="iris" cx="0.4" cy="0.38" r="0.7">
-      <stop offset="0" stop-color="#7ef0cf"/>
-      <stop offset="0.55" stop-color="#2e9c80"/>
-      <stop offset="1" stop-color="#14403a"/>
-    </radialGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <!-- the eye -->
-  <path d="M56 256 Q256 70 456 256 Q256 442 56 256 Z" fill="#fff"/>
-  <circle cx="256" cy="256" r="92" fill="url(#iris)"/>
-  <circle cx="256" cy="256" r="44" fill="#0b1020"/>
-  <circle cx="230" cy="228" r="20" fill="#fff" opacity="0.9"/>
-  <!-- outline so it stays crisp when tiny -->
-  <path d="M56 256 Q256 70 456 256 Q256 442 56 256 Z" fill="none" stroke="#0b1020" stroke-width="18" stroke-linejoin="round"/>
+  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
+  <g transform="translate(76 83.5) scale(15)" fill="#fff">
+    <path d="M12 6c3.79 0 7.17 2.13 8.82 5.5C19.17 14.87 15.79 17 12 17s-7.17-2.13-8.82-5.5C4.83 8.13 8.21 6 12 6m0-2C7 4 2.73 7.11 1 11.5 2.73 15.89 7 19 12 19s9.27-3.11 11-7.5C21.27 7.11 17 4 12 4m0 5c1.38 0 2.5 1.12 2.5 2.5S13.38 14 12 14s-2.5-1.12-2.5-2.5S10.62 9 12 9m0-2c-2.48 0-4.5 2.02-4.5 4.5S9.52 16 12 16s4.5-2.02 4.5-4.5S14.48 7 12 7z"/>
+  </g>
 </svg>
