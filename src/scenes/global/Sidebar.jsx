@@ -139,13 +139,13 @@ const Sidebar = () => {
           alignItems: "center",
           justifyContent: isCollapsed ? "center" : "space-between",
           m: "10px 0 20px 0",
-          pl: isCollapsed ? 0 : "35px",
+          pl: isCollapsed ? 0 : "20px",
           pr: isCollapsed ? 0 : "15px",
           minHeight: 48,
         }}
       >
         {!isCollapsed && (
-          <ArgusBrand size="sm" badge={false} color={colors.grey[100]} captionColor={colors.greenAccent[500]} />
+          <ArgusBrand size="sm" color={colors.grey[100]} captionColor={colors.greenAccent[500]} />
         )}
         <IconButton
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}

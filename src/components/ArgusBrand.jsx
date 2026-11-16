@@ -1,8 +1,8 @@
-// The ARGUS name: eye badge + "ARGUS" in bold Rajdhani + its caption.
+// The ARGUS name: blinking helmet hexagon (ArgusMark) + "ARGUS" in bold Rajdhani + its caption.
 // Used on the node picker, the login page, the sidebar and the phone top bar.
 // Argus Panoptes was the hundred-eyed giant of Greek myth who never slept.
 import { Box, Typography, alpha } from "@mui/material";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import ArgusMark from "./ArgusMark";
 import { tokens } from "../theme";
 
 export const ARGUS_FONT = "'Rajdhani', 'Source Sans Pro', sans-serif";
@@ -10,9 +10,10 @@ export const ARGUS_CAPTION = "Eyes on every vehicle.";
 
 const SIZES = {
   //    badge, icon, name, caption, gap
-  lg: { badge: 52, icon: 28, name: 40, caption: 16, gap: 1.75 },
-  md: { badge: 44, icon: 24, name: 34, caption: 15, gap: 1.5 },
-  sm: { badge: 34, icon: 20, name: 28, caption: 13, gap: 1.25 },
+  lg: { badge: 60, icon: 28, name: 40, caption: 16, gap: 1.75 },
+  md: { badge: 50, icon: 24, name: 34, caption: 15, gap: 1.5 },
+  sm: { badge: 38, icon: 20, name: 28, caption: 12, gap: 1.1 },
+  xs: { badge: 32, icon: 18, name: 24, caption: 11, gap: 0.9 },
 };
 
 const ArgusBrand = ({ size = "lg", color = "#fff", captionColor, badge = true, caption = true, sx }) => {
@@ -20,24 +21,7 @@ const ArgusBrand = ({ size = "lg", color = "#fff", captionColor, badge = true, c
   const s = SIZES[size] ?? SIZES.lg;
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: s.gap, minWidth: 0, ...sx }}>
-      {badge && (
-        <Box
-          aria-hidden
-          sx={{
-            width: s.badge,
-            height: s.badge,
-            borderRadius: "12px",
-            display: "grid",
-            placeItems: "center",
-            flexShrink: 0,
-            color: "#fff",
-            background: `linear-gradient(135deg, ${d.blueAccent[500]}, ${d.greenAccent[600]})`,
-            boxShadow: `0 6px 18px ${alpha(d.blueAccent[500], 0.45)}`,
-          }}
-        >
-          <VisibilityOutlinedIcon sx={{ fontSize: s.icon }} />
-        </Box>
-      )}
+      {badge && <ArgusMark size={s.badge} />}
       <Box sx={{ minWidth: 0 }}>
         <Typography
           component="span"

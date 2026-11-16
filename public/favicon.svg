@@ -1,13 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- the same badge as the ARGUS name on the site: blue-to-green square, white eye -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- ARGUS: Greek helmet in a blue-green hexagon (same as src/components/ArgusMark.jsx) -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6870fa"/>
-      <stop offset="1" stop-color="#3da58a"/>
-    </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6870fa"/><stop offset="1" stop-color="#3da58a"/></linearGradient>
   </defs>
-  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
-  <g transform="translate(76 83.5) scale(15)" fill="#fff">
-    <path d="M12 6c3.79 0 7.17 2.13 8.82 5.5C19.17 14.87 15.79 17 12 17s-7.17-2.13-8.82-5.5C4.83 8.13 8.21 6 12 6m0-2C7 4 2.73 7.11 1 11.5 2.73 15.89 7 19 12 19s9.27-3.11 11-7.5C21.27 7.11 17 4 12 4m0 5c1.38 0 2.5 1.12 2.5 2.5S13.38 14 12 14s-2.5-1.12-2.5-2.5S10.62 9 12 9m0-2c-2.48 0-4.5 2.02-4.5 4.5S9.52 16 12 16s4.5-2.02 4.5-4.5S14.48 7 12 7z"/>
-  </g>
+  <path d="M50 4 Q52.5 4 55 5.4 L87.5 24.2 Q92 26.8 92 32 V68 Q92 73.2 87.5 75.8 L55 94.6 Q50 97.5 45 94.6 L12.5 75.8 Q8 73.2 8 68 V32 Q8 26.8 12.5 24.2 L45 5.4 Q47.5 4 50 4 Z" fill="url(#bg)"/>
+  <path d="M37 27 Q50 9 63 27 Q50 22 37 27 Z" fill="#fff" opacity="0.9"/>
+  <path d="M50 23 C35.5 23 28 34 28 47 L28 71 L40.5 77.5 L44 60.5 L44 76 L56 76 L56 60.5 L59.5 77.5 L72 71 L72 47 C72 34 64.5 23 50 23 Z" fill="#fff"/>
+  <path d="M30 44.5 Q50 38 70 44.5 L69 52 Q59 49.5 54.5 54 L54.5 76 L45.5 76 L45.5 54 Q41 49.5 31 52 Z" fill="#24336a"/>
+  <path d="M34 47.6 Q38.2 44.9 42.4 47.6 Q38.2 50.3 34 47.6 Z" fill="#7ef0cf"/>
+  <path d="M57.6 47.6 Q61.8 44.9 66 47.6 Q61.8 50.3 57.6 47.6 Z" fill="#7ef0cf"/>
 </svg>

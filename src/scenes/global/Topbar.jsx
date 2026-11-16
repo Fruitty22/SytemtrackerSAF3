@@ -86,7 +86,7 @@ const Topbar = () => {
         >
           {navOpen ? <CloseOutlinedIcon /> : <MenuOutlinedIcon />}
         </IconButton>
-        <ArgusBrand size="sm" badge={false} color={colors.grey[100]} captionColor={colors.greenAccent[500]} />
+        <ArgusBrand size="xs" color={colors.grey[100]} captionColor={colors.greenAccent[500]} />
       </Box>
       <Box sx={{ flex: 1 }} />
       {/* which node you're in; the Super Admin can switch here */}
