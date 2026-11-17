@@ -1365,6 +1365,7 @@ export function createApi({ store = createStore() } = {}) {
       // ---------------- the AI assistant (server/assistant.js)
       ...assistantRoutes({
         D,
+        nodeName: nodeByKey(node)?.name ?? node,
         route,
         fail,
         canSeeVehicle,

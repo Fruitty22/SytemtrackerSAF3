@@ -178,7 +178,7 @@ const aiError = (status) => {
 // The instructions for Groq / OpenAI-style services. Kept SHORT on purpose:
 // Groq's free tier allows only ~8,000 tokens a minute, so the user guide is
 // not sent every time - the model asks for the part it needs (help_guide tool).
-const systemText = ({ user, today, page }) =>
+const systemText = ({ user, today, page, nodeName }) =>
   "You are the assistant in the Fleet Admin Dashboard (SAF transport fleet serviceability web app, Singapore). " +
   "Status: AVAILABLE; DEPLOYED (out on TASKING / SELF DRIVE / TLOAN / OVERSEAS or a tasking booking); UNAVAILABLE (VOR STATUS has X, " +
   "STANDBY or another blocked field has text, a Y/N maintenance item is N, or a servicing booking today). " +
@@ -189,6 +189,9 @@ const systemText = ({ user, today, page }) =>
   "You cannot delete vehicles or change accounts, disregards or criteria. Ask one short question if unclear. " +
   "Answer briefly; use **bold** and '- ' bullets, no tables. " +
   `Guide sections: ${guideTitles().join("; ")}. ` +
+  (nodeName
+    ? `This is the ${nodeName} node: ALL the data the tools return is ${nodeName}'s fleet, so "${nodeName}" / "${nodeName} node" means the whole fleet (do not pass it as commander or type). `
+    : "") +
   `Today is ${today}. User: ${user.name}, ${ROLES[user.role] ?? user.role}` +
   (user.role === "admin" ? " (sees everything)." : " (sees only own vehicles; no Admin pages).") +
   (page ? ` Current page: ${page}.` : "");
@@ -250,7 +253,7 @@ async function runOpenAI({ provider, user, today, history, tools, page }) {
 }
 
 async function runOpenAIModel({ provider, model, user, today, history, tools, page }) {
-  const messages = [{ role: "system", content: systemText({ user, today, page }) }, ...history];
+  const messages = [{ role: "system", content: systemText({ user, today, page, nodeName: tools.nodeName }) }, ...history];
   const fnTools = [HELP_TOOL, ...tools.list].map((t) => ({
     type: "function",
     function: { name: t.name, description: t.description, parameters: t.input_schema },
@@ -331,7 +334,7 @@ async function runOpenAIModel({ provider, model, user, today, history, tools, pa
 // ---------------------------------------------------------------- the routes
 
 export function assistantRoutes(ctx) {
-  const { D, route, fail, canSeeVehicle, vehicleOut, patchedVehicle, newVehicle, checkedEvent, canSeeEvent } = ctx;
+  const { D, route, fail, canSeeVehicle, vehicleOut, patchedVehicle, newVehicle, checkedEvent, canSeeEvent, nodeName } = ctx;
 
   async function chat({ user, body }) {
 
@@ -417,6 +420,24 @@ export function assistantRoutes(ctx) {
       const names = [ownerName(v), v.sourceSheet].filter(Boolean).map((n) => String(n).toLowerCase());
       return names.some((n) => n.includes(q) || q.includes(n) || titlesMatch(n, q));
     };
+    // a filter word that is really the node itself ("khatib node") means everything
+    const nodeWords = new Set(
+      [nodeName, `${nodeName} node`, "this node", "my node", "node", "all", "everyone", "everything", "fleet", "whole fleet"]
+        .filter(Boolean)
+        .map((x) => String(x).toLowerCase())
+    );
+    const isNodeWord = (x) => nodeWords.has(String(x ?? "").trim().toLowerCase().replace(/\s+/g, " "));
+    // a commander / type nobody has -> say so (with the real names) instead of "0 vehicles"
+    const unknownFilter = ({ type, commander }) => {
+      if (commander && !isNodeWord(commander) && !visible.some((v) => ofCommander(v, commander))) {
+        const names = handlers._names();
+        return { error: `No commander or worksheet called "${commander}" in this node.`, commandersAndWorksheets: names.slice(0, 60) };
+      }
+      if (type && !isNodeWord(type) && !visible.some((v) => sameType(v.type, type) || v.type.includes(String(type).toUpperCase()))) {
+        return { error: `No vehicle type "${type}" in this node.`, types: [...new Set(visible.map((v) => v.type))] };
+      }
+      return null;
+    };
     const sameType = (a, b) => normalizeTitle(a) === normalizeTitle(b) || titlesMatch(a, b);
     const fieldName = (name, list) => list.find((f) => normalizeTitle(f) === normalizeTitle(name)) ?? list.find((f) => titlesMatch(f, name));
     const blockNames = () => BLOCK_FIELDS.map((f) => f.name);
@@ -483,6 +504,10 @@ export function assistantRoutes(ctx) {
       },
 
       fleet_summary({ type, commander }) {
+        const bad = unknownFilter({ type, commander });
+        if (bad) return bad;
+        if (isNodeWord(type)) type = undefined;
+        if (isNodeWord(commander)) commander = undefined;
         let list = visible;
         if (type) list = list.filter((v) => sameType(v.type, type));
         if (commander) list = list.filter((v) => ofCommander(v, commander));
@@ -515,6 +540,11 @@ export function assistantRoutes(ctx) {
       },
 
       search_vehicles({ mids, type, status, reason, text, commander, limit }) {
+        const bad = unknownFilter({ type, commander });
+        if (bad) return bad;
+        if (isNodeWord(type)) type = undefined;
+        if (isNodeWord(commander)) commander = undefined;
+        if (isNodeWord(text)) text = undefined;
         let list = visible;
         if (Array.isArray(mids) && mids.length) {
           const want = new Set(mids.map((m) => String(m).trim().toUpperCase()));
@@ -689,7 +719,7 @@ export function assistantRoutes(ctx) {
       },
     };
 
-    return { list: TOOLS, handlers, actions };
+    return { list: TOOLS, handlers, actions, nodeName };
   }
 
   async function runModel({ key, user, today, history, tools, page }) {
