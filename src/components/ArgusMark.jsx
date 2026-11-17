@@ -1,4 +1,4 @@
-// The ARGUS logo: a Greek (Corinthian) helmet in a hexagon, with eyes that
+// The main ARGUS logo: a Greek (Corinthian) helmet in a hexagon, with eyes that
 // blink every few seconds. Every node has its own version: blue-green or gold,
 // with its own emblem (see NODE_LOGOS below). With no node it's the main ARGUS
 // logo, the same drawing as public/favicon.svg (the browser-tab icon).
@@ -142,6 +142,86 @@ ${glowLayer ? `<g class="eye-glow" filter="url(#${p}-soft)">${eyes}</g>` : ""}
 ${n?.front ? n.front(p) : ""}`;
 }
 
+
+// ---- Company badges: each node's own animal (from the company insignia) in
+// the ARGUS hexagon, with a glow in the animal's colour, a white rim light, a
+// drop shadow, and the top of the animal breaking out over the frame.
+// Pictures are in public/nodes/<node>.webp (background already removed).
+const STEEL = ["0.04 0.20 0.50 0.82 1", "0.07 0.30 0.62 0.90 1", "0.14 0.45 0.80 0.97 1"];
+export const NODE_BADGES = {
+  ktn: { w: 440, h: 434, accent: "#38e1ff", fit: 76, bottom: 88, wind: true, eye: [0.327, 0.389] },
+  kranji: { w: 362, h: 420, accent: "#dfe8f5" },
+  "mandai-hill": { w: 352, h: 420, accent: "#ff4040" },
+  ltc: { w: 386, h: 420, accent: "#ff8a2a" },
+  hq: { w: 420, h: 327, accent: "#e7ad52" },
+  alpha: { w: 420, h: 372, accent: "#f7c440" },
+  charlie: { w: 380, h: 420, accent: "#f0a868" },
+  csc: { w: 420, h: 316, accent: "#7fb2ff", fit: 100, bottom: 90, tint: STEEL },
+};
+
+// soft wind ribbons behind the KTN horse
+const wind = (p) => `<defs>
+<linearGradient id="${p}-rb" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#38e1ff" stop-opacity="0"/><stop offset=".45" stop-color="#38e1ff" stop-opacity=".85"/><stop offset="1" stop-color="#a8f3ff" stop-opacity=".95"/></linearGradient>
+<linearGradient id="${p}-rb2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#a8f3ff" stop-opacity="0"/><stop offset=".6" stop-color="#a8f3ff" stop-opacity=".7"/><stop offset="1" stop-color="#ffffff" stop-opacity=".9"/></linearGradient>
+<filter id="${p}-rbf" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation=".5"/></filter></defs>
+<g filter="url(#${p}-rbf)">
+<path d="M14 84 C30 60 52 44 96 30 C70 46 48 60 30 84 Z" fill="url(#${p}-rb)"/>
+<path d="M22 92 C44 70 70 58 104 52 C80 62 58 74 40 92 Z" fill="url(#${p}-rb)" opacity=".8"/>
+<path d="M30 20 C52 10 78 8 102 16 C80 14 58 18 40 26 Z" fill="url(#${p}-rb2)" opacity=".75"/>
+<path d="M60 96 C74 82 88 74 106 70 C92 78 80 86 72 96 Z" fill="url(#${p}-rb2)" opacity=".7"/>
+<path d="M4 62 C18 44 34 34 56 28 C40 38 26 48 16 64 Z" fill="url(#${p}-rb2)" opacity=".55"/></g>
+<g fill="#a8f3ff"><circle cx="88" cy="22" r=".9"/><circle cx="96" cy="40" r=".7"/><circle cx="80" cy="12" r=".6"/><circle cx="100" cy="58" r=".8"/><circle cx="12" cy="40" r=".6"/></g>`;
+
+export const BADGE_VIEWBOX = "-4 -14 108 116";
+
+export function badgeMarkup(nodeKey, p = "nb") {
+  const b = NODE_BADGES[nodeKey];
+  const gold = !!NODE_LOGOS[nodeKey]?.gold;
+  const fit = b.fit ?? 82;
+  const bottom = b.bottom ?? 86;
+  const sc = fit / Math.max(b.w, b.h);
+  const W = b.w * sc;
+  const H = b.h * sc;
+  const x = 50 - W / 2;
+  const y = bottom - H;
+  const href = `/nodes/${nodeKey}.webp`;
+  const img = (extra = "") =>
+    `<image href="${href}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${W.toFixed(1)}" height="${H.toFixed(1)}" ${extra}/>`;
+  const inner = `transform="translate(50 50) scale(.92) translate(-50 -50)"`;
+  const tint = b.tint
+    ? `<filter id="${p}-mt" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values=".33 .5 .17 0 0 .33 .5 .17 0 0 .33 .5 .17 0 0 0 0 0 1 0"/><feComponentTransfer><feFuncR type="table" tableValues="${b.tint[0]}"/><feFuncG type="table" tableValues="${b.tint[1]}"/><feFuncB type="table" tableValues="${b.tint[2]}"/></feComponentTransfer></filter>`
+    : "";
+  const glowOpacity = b.wind ? 0.4 : 0.8;
+  const eye = b.eye
+    ? `<g class="eye-glow"><circle cx="${(x + b.eye[0] * W).toFixed(1)}" cy="${(y + b.eye[1] * H).toFixed(1)}" r="4" fill="#9ff3ff" opacity=".6" filter="url(#${p}-eg)"/></g>`
+    : "";
+  return `<defs>
+<linearGradient id="${p}-th" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8f95ff"/><stop offset="1" stop-color="#4cceac"/></linearGradient>
+<linearGradient id="${p}-au" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbe7a6"/><stop offset=".5" stop-color="#d9ac40"/><stop offset="1" stop-color="#8f661a"/></linearGradient>
+<radialGradient id="${p}-in" cx=".5" cy=".45" r=".62"><stop offset="0" stop-color="${b.accent}" stop-opacity=".38"/><stop offset=".38" stop-color="#16204a"/><stop offset="1" stop-color="#060914"/></radialGradient>
+<linearGradient id="${p}-gl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".1"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<pattern id="${p}-gr" width="7" height="12.12" patternUnits="userSpaceOnUse"><path d="M3.5 0 L7 2 V6 L3.5 8 L0 6 V2 Z M3.5 8 V12.12" fill="none" stroke="#fff" stroke-opacity=".06" stroke-width=".4"/></pattern>
+<clipPath id="${p}-pop"><path d="${HEX}"/><rect x="-10" y="-20" width="120" height="52"/></clipPath>
+<filter id="${p}-sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2.2" stdDeviation="1.8" flood-color="#000" flood-opacity=".7"/></filter>
+<filter id="${p}-glo" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur in="SourceAlpha" stdDeviation="3.2" result="b"/><feFlood flood-color="${b.accent}" flood-opacity="${glowOpacity}" result="f"/><feComposite in="f" in2="b" operator="in"/></filter>
+<filter id="${p}-rim" x="-10%" y="-10%" width="120%" height="120%"><feMorphology in="SourceAlpha" operator="dilate" radius=".8" result="d"/><feFlood flood-color="#fff" flood-opacity=".9" result="f"/><feComposite in="f" in2="d" operator="in"/></filter>
+<filter id="${p}-bs" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity=".55"/></filter>
+<filter id="${p}-eg" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.6"/></filter>
+${tint}</defs>
+<g filter="url(#${p}-bs)"><path d="${HEX}" fill="url(#${p}-${gold ? "au" : "th"})"/></g>
+<path d="${HEX}" ${inner} fill="url(#${p}-in)"/>
+<path d="${HEX}" ${inner} fill="url(#${p}-gr)"/>
+${b.wind ? wind(p) : ""}
+<g clip-path="url(#${p}-pop)">
+<g filter="url(#${p}-glo)">${img()}</g>
+<g filter="url(#${p}-rim)" opacity=".55">${img()}</g>
+<g filter="url(#${p}-sh)">${img(b.tint ? `filter="url(#${p}-mt)"` : "")}</g>
+</g>
+${eye}
+<path d="${HEX}" ${inner} fill="url(#${p}-gl)"/>
+<path d="${HEX}" ${inner} fill="none" stroke="#fff" stroke-opacity=".18" stroke-width=".8"/>`;
+}
+
 // node = a key from shared/nodes.js, or nothing for the main ARGUS logo
 const ArgusMark = ({ size = 48, node, animate = true, title, sx }) => {
   const id = `am${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -159,7 +239,7 @@ const ArgusMark = ({ size = 48, node, animate = true, title, sx }) => {
   return (
     <Box
       component="svg"
-      viewBox="0 0 100 100"
+      viewBox={NODE_BADGES[node] ? BADGE_VIEWBOX : "0 0 100 100"}
       role={title ? "img" : undefined}
       aria-label={title}
       aria-hidden={title ? undefined : "true"}
@@ -175,7 +255,7 @@ const ArgusMark = ({ size = 48, node, animate = true, title, sx }) => {
         ...sx,
       }}
       // fixed drawing from this file (no user text in it)
-      dangerouslySetInnerHTML={{ __html: logoMarkup(node, id) }}
+      dangerouslySetInnerHTML={{ __html: NODE_BADGES[node] ? badgeMarkup(node, id) : logoMarkup(node, id) }}
     />
   );
 };
