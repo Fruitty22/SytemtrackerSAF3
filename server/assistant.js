@@ -24,7 +24,7 @@ import { deployability, reasonText, statusLabel, disregardsFor } from "../shared
 import { eventsByVehicleOn, isIsoDate } from "../shared/schedule.js";
 import { titlesMatch, normalizeTitle } from "../shared/titles.js";
 
-const MAX_TURNS = 20; // messages of history sent to the model
+const MAX_TURNS = 10; // messages of history sent to the model (each costs free-tier tokens)
 const MAX_TOOL_ROUNDS = 6;
 const MAX_ACTIONS = 25;
 const RATE_LIMIT = 10; // AI messages per user per minute (free quotas are per account)
@@ -70,6 +70,22 @@ const TOOLS = [
         commander: { type: "string", description: "Commander's name or the Excel worksheet name, e.g. 3SG Rizq" },
         limit: { type: "integer", description: "Default 60" },
       },
+    },
+  },
+  {
+    name: "analyse_fleet",
+    description:
+      "Compare / rank groups in one call: counts, readiness % and top reasons per type, commander, worksheet, reason or status. Use for 'which commander has most...', 'compare', 'top problems', 'breakdown'.",
+    input_schema: {
+      type: "object",
+      properties: {
+        group_by: { type: "string", enum: ["type", "commander", "worksheet", "reason", "status"] },
+        type: { type: "string", description: "Filter: vehicle type (optional)" },
+        commander: { type: "string", description: "Filter: commander or worksheet (optional)" },
+        status: { type: "string", enum: ["available", "deployed", "unavailable"] },
+        reason: { type: "string", description: "Filter: reason field, e.g. VOR (optional)" },
+      },
+      required: ["group_by"],
     },
   },
   {
@@ -194,7 +210,10 @@ const systemText = ({ user, today, page, nodeName }) =>
   "A commander may be named by account or by Excel worksheet name - pass it as commander. For how-to questions call help_guide and answer with exact page and button names. " +
   "For changes or bookings call the propose_* tools; the user must press Confirm on each card, so say it is ready to confirm, never saved. " +
   "You cannot delete vehicles or change accounts, disregards or criteria. Ask one short question if unclear. " +
-  "Answer briefly; use **bold** and '- ' bullets, no tables. " +
+  "For comparisons, rankings, 'which commander/type has most', breakdowns or 'analyse' call analyse_fleet (one call), not many searches. " +
+  "Understand loose wording: 6 tonner = 6 TON, luv = AGILIS AUTO (LUV), u/s / down / not ava = unavailable, svc = serviceable/available. " +
+  "Answer style: first line = the direct answer with the key number; then up to 8 short bullets (most important first); if there is more, say how many more and offer to list them. " +
+  "Use **bold** for numbers/MIDs and '- ' bullets, no tables. " +
   `Guide sections: ${guideTitles().join("; ")}. ` +
   (nodeName
     ? `This is the ${nodeName} node: ALL the data the tools return is ${nodeName}'s fleet, so "${nodeName}" / "${nodeName} node" means the whole fleet (do not pass it as commander or type). `
@@ -215,7 +234,14 @@ const HELP_TOOL = {
 
 // Groq models to try in order. Each has its own free per-minute allowance,
 // so when one is busy the next one answers.
-const GROQ_MODELS = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"];
+// (free tier, tokens a minute: gpt-oss 8k, kimi-k2 10k, llama-3.3 12k, llama-4-scout 30k)
+const GROQ_MODELS = [
+  "openai/gpt-oss-120b",
+  "moonshotai/kimi-k2-instruct-0905",
+  "llama-3.3-70b-versatile",
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "openai/gpt-oss-20b",
+];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -225,7 +251,7 @@ const RESULT_MAX = 12000;
 export function fitResult(result, max = RESULT_MAX) {
   let json = JSON.stringify(result);
   if (json.length <= max || !result || typeof result !== "object") return json.length <= max ? json : JSON.stringify({ error: "Too much data - ask for a narrower list." });
-  const key = Array.isArray(result.vehicles) ? "vehicles" : Array.isArray(result.bookings) ? "bookings" : null;
+  const key = ["vehicles", "rows", "groups", "bookings"].find((k) => Array.isArray(result[k])) ?? null;
   if (!key) {
     const slim = { ...result };
     delete slim.perCommander;
@@ -304,6 +330,8 @@ async function runOpenAIModel({ provider, model, user, today, history, tools, pa
       err.quota = res.status === 429 || res.status === 413 || /rate limit|tokens per|too large/i.test(message);
       // a model that can't call tools properly -> try another model
       if (res.status === 400 && /tool|function/i.test(message)) err.quota = true;
+      // a model Groq has retired / renamed -> just try the next one
+      if (res.status === 404 || /model.*(not found|does not exist|decommission|not supported)|unknown model/i.test(message)) err.quota = true;
       err.message = message.slice(0, 160) || err.message;
       throw err;
     }
@@ -327,7 +355,8 @@ async function runOpenAIModel({ provider, model, user, today, history, tools, pa
       try {
         const args = JSON.parse(call.function?.arguments || "{}");
         const handler = handlers[call.function?.name];
-        result = handler ? handler(args) : { error: `Unknown tool ${call.function?.name}` };
+        const name = call.function?.name;
+        result = handler ? handler(name === "search_vehicles" || name === "fleet_summary" ? { ...args, compact: true } : args) : { error: `Unknown tool ${name}` };
       } catch (err) {
         result = { error: err instanceof SyntaxError ? "The tool input wasn't valid JSON." : "That lookup failed." };
       }
@@ -349,7 +378,8 @@ export function assistantRoutes(ctx) {
     const history = (Array.isArray(body.messages) ? body.messages : [])
       .filter((m) => (m?.role === "user" || m?.role === "assistant") && typeof m.content === "string" && m.content.trim())
       .slice(-MAX_TURNS)
-      .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
+      // older answers are only context: keep them short
+      .map((m) => ({ role: m.role, content: m.content.slice(0, m.role === "assistant" ? 700 : 1500) }));
     while (history.length && history[0].role !== "user") history.shift();
     // two messages in a row from the same side (e.g. "(Saved ...)" notes) become one
     for (let i = history.length - 1; i > 0; i -= 1) {
@@ -446,6 +476,9 @@ export function assistantRoutes(ctx) {
       }
       return null;
     };
+    // {X: {available, deployed, unavailable}} -> {X: "avail/deployed/unavail"}
+    const squash = (o) => Object.fromEntries(Object.entries(o).map(([k, c]) => [k, `${c.available}/${c.deployed}/${c.unavailable}`]));
+    const typeMatches = (v, type) => sameType(v.type, type) || v.type.includes(String(type).toUpperCase().trim());
     const sameType = (a, b) => normalizeTitle(a) === normalizeTitle(b) || titlesMatch(a, b);
     const fieldName = (name, list) => list.find((f) => normalizeTitle(f) === normalizeTitle(name)) ?? list.find((f) => titlesMatch(f, name));
     const blockNames = () => BLOCK_FIELDS.map((f) => f.name);
@@ -511,13 +544,13 @@ export function assistantRoutes(ctx) {
         return [...new Set(visible.flatMap((v) => [ownerName(v), v.sourceSheet]).filter((n) => n && n !== "Unassigned"))];
       },
 
-      fleet_summary({ type, commander }) {
+      fleet_summary({ type, commander, compact }) {
         const bad = unknownFilter({ type, commander });
         if (bad) return bad;
         if (isNodeWord(type)) type = undefined;
         if (isNodeWord(commander)) commander = undefined;
         let list = visible;
-        if (type) list = list.filter((v) => sameType(v.type, type));
+        if (type) list = list.filter((v) => typeMatches(v, type));
         if (commander) list = list.filter((v) => ofCommander(v, commander));
         const totals = { available: 0, deployed: 0, unavailable: 0 };
         const perType = {};
@@ -539,15 +572,16 @@ export function assistantRoutes(ctx) {
           [DEPLOY_LABELS.yes]: totals.available,
           [DEPLOY_LABELS.deployed]: totals.deployed,
           [DEPLOY_LABELS.no]: totals.unavailable,
+          ...(compact ? { counts: "available/deployed/unavailable" } : {}),
           readinessPercent: list.length ? Math.round((totals.available / list.length) * 100) : 0,
-          perType,
-          perCommander: user.role === "admin" ? perCommander : undefined,
+          perType: compact ? squash(perType) : perType,
+          perCommander: user.role === "admin" ? (compact ? squash(perCommander) : perCommander) : undefined,
           worksheets: [...new Set(list.map((v) => v.sourceSheet).filter(Boolean))].length,
           topReasons: Object.entries(reasons).sort((a, b) => b[1] - a[1]).slice(0, 15),
         };
       },
 
-      search_vehicles({ mids, type, status, reason, text, commander, limit }) {
+      search_vehicles({ mids, type, status, reason, text, commander, limit, compact }) {
         const bad = unknownFilter({ type, commander });
         if (bad) return bad;
         if (isNodeWord(type)) type = undefined;
@@ -558,7 +592,7 @@ export function assistantRoutes(ctx) {
           const want = new Set(mids.map((m) => String(m).trim().toUpperCase()));
           list = list.filter((v) => want.has(v.mid));
         }
-        if (type) list = list.filter((v) => sameType(v.type, type) || v.type.includes(String(type).toUpperCase()));
+        if (type) list = list.filter((v) => typeMatches(v, type));
         if (commander) list = list.filter((v) => ofCommander(v, commander));
         let rows = list.map((v) => ({ v, d: statusOf(v) }));
         const st = normStatus(status);
@@ -576,7 +610,67 @@ export function assistantRoutes(ctx) {
           );
         }
         const max = Math.min(Math.max(Number(limit) || 60, 1), 200);
-        return { found: rows.length, shown: Math.min(rows.length, max), vehicles: rows.slice(0, max).map(({ v }) => brief(v)) };
+        const shown = rows.slice(0, max).map(({ v }) => brief(v));
+        if (compact) {
+          // the AI gets one short row per vehicle (far fewer tokens than objects)
+          return {
+            found: rows.length,
+            shown: shown.length,
+            columns: "MID | type | status | reasons | commander (worksheet) | remarks",
+            rows: shown.map((b) =>
+              [b.mid, b.type, b.status, b.reasons.join(", ") || "-", b.commander + (b.worksheet ? ` (${b.worksheet})` : ""), (b.remarks ?? "").slice(0, 80) || "-"].join(" | ")
+            ),
+          };
+        }
+        return { found: rows.length, shown: shown.length, vehicles: shown };
+      },
+
+      analyse_fleet({ group_by, type, commander, status, reason }) {
+        const bad = unknownFilter({ type, commander });
+        if (bad) return bad;
+        if (isNodeWord(type)) type = undefined;
+        if (isNodeWord(commander)) commander = undefined;
+        const by = ["type", "commander", "worksheet", "reason", "status"].includes(group_by) ? group_by : "type";
+        let rows = visible
+          .filter((v) => (!type || typeMatches(v, type)) && (!commander || ofCommander(v, commander)))
+          .map((v) => ({ v, d: statusOf(v) }));
+        const st = normStatus(status);
+        if (st) rows = rows.filter((r) => r.d.status === st);
+        if (reason) rows = rows.filter((r) => r.d.reasons.some((x) => reasonText(x).toUpperCase().includes(String(reason).toUpperCase())));
+        const groups = new Map();
+        const add = (key, r) => {
+          const g = groups.get(key) ?? { total: 0, available: 0, deployed: 0, unavailable: 0, reasons: {}, mids: [] };
+          g.total += 1;
+          g[r.d.status] += 1;
+          for (const x of r.d.reasons) {
+            const k = x.kind === "maintenance" ? `${x.field} (N)` : x.field;
+            g.reasons[k] = (g.reasons[k] ?? 0) + 1;
+          }
+          if (g.mids.length < 12 && r.d.status !== "available") g.mids.push(r.v.mid);
+          groups.set(key, g);
+        };
+        for (const r of rows) {
+          if (by === "reason") {
+            const keys = [...new Set(r.d.reasons.map((x) => (x.kind === "maintenance" ? `${x.field} (N)` : x.field)))];
+            for (const k of keys.length ? keys : ["(no problem)"]) add(k, r);
+          } else {
+            const key = by === "type" ? r.v.type : by === "commander" ? ownerName(r.v) : by === "worksheet" ? r.v.sourceSheet || "(no worksheet)" : statusLabel(r.d.status);
+            add(key, r);
+          }
+        }
+        const out = [...groups.entries()]
+          .map(([key, g]) => ({
+            [by]: key,
+            total: g.total,
+            available: g.available,
+            deployed: g.deployed,
+            unavailable: g.unavailable,
+            readinessPercent: g.total ? Math.round((g.available / g.total) * 100) : 0,
+            topReasons: Object.entries(g.reasons).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${k} ${n}`).join(", ") || "-",
+            notAvailableMids: g.mids.join(" "),
+          }))
+          .sort((a, b) => b.unavailable - a.unavailable || b.total - a.total);
+        return { date: today, groupedBy: by, vehiclesCounted: rows.length, groups: out.slice(0, 40) };
       },
 
       get_vehicle({ mid }) {

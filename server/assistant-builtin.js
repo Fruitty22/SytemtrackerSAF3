@@ -306,6 +306,26 @@ export function runBuiltin({ question, tools, today, user }) {
     (fields.length > 0 && !CHANGE.test(lower)) ||
     (typeHitEarly(text, h) && text.split(/\s+/).length <= 6);
 
+  // rankings / comparisons: "which commander has the most unavailable", "compare types", "top problems"
+  const groupWord = /\b(commanders?|worksheets?|sheets?|types?|reasons?|problems?|issues?)\b/i.exec(lower)?.[1];
+  if (groupWord && /\b(most|least|top|worst|best|rank|ranking|compare|comparison|breakdown|by|per|each|analy[sz]e)\b/i.test(lower) && !/\bhow (do|can|to)\b/i.test(lower)) {
+    const by = /commander/.test(groupWord) ? "commander" : /sheet/.test(groupWord) ? "worksheet" : /type/.test(groupWord) ? "type" : "reason";
+    const a = h.analyse_fleet({ group_by: by, type: typeHit ?? undefined, commander: who ?? undefined, status: by === "reason" ? "unavailable" : undefined });
+    if (a.error) return reply(a.error);
+    const best = /\b(least|best)\b/i.test(lower);
+    const groups = best ? [...a.groups].sort((x, y) => y.readinessPercent - x.readinessPercent) : a.groups;
+    const lines = [`**By ${by}** (${a.date}, ${a.vehiclesCounted} vehicles) - ${best ? "best readiness first" : "most unavailable first"}:`];
+    for (const g of groups.slice(0, 10)) {
+      lines.push(
+        by === "reason"
+          ? `- **${g.reason}**: ${g.total} vehicles${g.notAvailableMids ? ` (e.g. ${g.notAvailableMids.split(" ").slice(0, 6).join(", ")})` : ""}`
+          : `- **${g[by]}**: ${g.unavailable} unavailable of ${g.total}, readiness ${g.readinessPercent}%${g.topReasons !== "-" ? ` - ${g.topReasons}` : ""}`
+      );
+    }
+    if (groups.length > 10) lines.push(`...and ${groups.length - 10} more.`);
+    return reply(lines.join("\n"));
+  }
+
   if ((isData || who) && (status || typeHit || reasonField || who) && !/\bhow (do|can|to)\b/i.test(lower)) {
     if (/\b(how many|count|number of|total|summary|overview|readiness)\b/i.test(lower) && !reasonField && !/\b(which|list|show)\b/i.test(lower)) {
       return reply(summaryText(h.fleet_summary({ type: typeHit ?? undefined, commander: who ?? undefined }), typeHit, status, who));
@@ -443,7 +463,33 @@ function typeHitEarly(text, h) {
   return !!matchType(text, h);
 }
 
+// loose words for vehicle types -> a part of the type name
+const TYPE_WORDS = [
+  [/\b6\s*-?\s*(tons?|tonnes?|tonners?|t)\b/i, "6 TON"],
+  [/\b5\s*-?\s*(tons?|tonnes?|tonners?|t)\b/i, "5 TON"],
+  [/\b12\s*-?\s*(tons?|tonnes?|tonners?|t)\b/i, "12 TON"],
+  [/\b(luvs?|agilis)\b/i, "AGILIS"],
+  [/\bvamtacs?\b/i, "VAMTAC"],
+  [/\b(ambulances?|amb)\b/i, "AMB"],
+  [/\bcranes?\b/i, "CRANE"],
+  [/\b(towers?|tow trucks?|recovery)\b/i, "TOWER"],
+  [/\bstaff\s*cars?\b/i, "STAFF CAR"],
+  [/\bgp\s*cars?\b/i, "GP CAR"],
+  [/\b(g300s?|g\s*wagons?|mb)\b/i, "G300"],
+  [/\bhimars\b/i, "HIMARS"],
+];
+
 function matchType(text, h) {
+  const exact = matchExactType(text, h);
+  if (exact) return exact;
+  const all = Object.keys(h.fleet_summary({}).perType ?? {});
+  for (const [re, part] of TYPE_WORDS) {
+    if (re.test(text) && all.some((t) => t.includes(part))) return part;
+  }
+  return null;
+}
+
+function matchExactType(text, h) {
   const types = [...new Set(h.search_vehicles({ limit: 200 }).vehicles.map((v) => v.type))];
   const all = h.fleet_summary({}).perType ? Object.keys(h.fleet_summary({}).perType) : types;
   const lower = ` ${text.toLowerCase().replace(/[^a-z0-9()]+/g, " ")} `;
@@ -456,8 +502,10 @@ function matchType(text, h) {
 
 function summaryText(s, type, status, who) {
   const head = `${type ? `**${type}**` : who ? `**${who}**'s vehicles` : "Your fleet"} today (${s.date}): **${s.total}** vehicles`;
+  const key = status && Object.values(DEPLOY_LABELS).find((l) => l.toLowerCase() === String(status).toLowerCase());
+  const direct = key ? `**${s[key]}** ${type ?? (who ? `of ${who}'s vehicles` : "vehicles")} ${s[key] === 1 ? "is" : "are"} ${key} right now (out of ${s.total}).\n\n` : "";
   const lines = [
-    head,
+    direct + head,
     `- ${DEPLOY_LABELS.yes}: ${s[DEPLOY_LABELS.yes]}`,
     `- ${DEPLOY_LABELS.deployed}: ${s[DEPLOY_LABELS.deployed]}`,
     `- ${DEPLOY_LABELS.no}: ${s[DEPLOY_LABELS.no]}`,
