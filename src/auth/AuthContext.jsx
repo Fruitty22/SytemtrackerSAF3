@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api, nodeStore, tokenStore } from "../api/client";
 import { MAIN_NODE, nodeByKey } from "../../shared/nodes.js";
 
@@ -13,6 +13,30 @@ export function AuthProvider({ children }) {
   const [node, setNode] = useState(() => nodeByKey(nodeStore.get()));
   // true while we check a saved login with the server
   const [checking, setChecking] = useState(() => !!tokenStore.get());
+  // the animated cover shown while moving between nodes / the node picker:
+  // null, or { to: node key (null = node picker), phase: "cover" | "reveal" }
+  const [transition, setTransition] = useState(null);
+  const busy = useRef(false);
+
+  // Fade the cover in, make the change underneath it, then fade it out.
+  const runTransition = useCallback(async (to, change) => {
+    if (busy.current) return;
+    busy.current = true;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    try {
+      setTransition({ to, phase: "cover" });
+      await wait(reduced ? 0 : 380);
+      const started = Date.now();
+      await change();
+      await wait(Math.max(0, (reduced ? 0 : 650) - (Date.now() - started)));
+      setTransition({ to, phase: "reveal" });
+      await wait(reduced ? 0 : 480);
+    } finally {
+      setTransition(null);
+      busy.current = false;
+    }
+  }, []);
 
   // restore the login after a page refresh
   useEffect(() => {
@@ -92,25 +116,45 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Node picker (before logging in): remember the node, show its login page
-  const chooseNode = useCallback((key) => {
-    nodeStore.set(key);
-    setNode(nodeByKey(key));
-  }, []);
+  const chooseNode = useCallback(
+    (key) =>
+      runTransition(key, () => {
+        nodeStore.set(key);
+        setNode(nodeByKey(key));
+      }),
+    [runTransition]
+  );
 
   // Back to the node picker. A node's own account is logged out (it only
   // exists in that node); the Super Admin stays logged in.
-  const leaveNode = useCallback(() => {
-    if (user && !user.superAdmin) tokenStore.set(null);
-    nodeStore.set(null);
-    window.location.assign("/");
-  }, [user]);
+  const leaveNode = useCallback(
+    () =>
+      runTransition(null, () => {
+        if (user && !user.superAdmin) tokenStore.set(null);
+        nodeStore.set(null);
+        setUser(null);
+        setNode(null);
+      }),
+    [user, runTransition]
+  );
 
-  // Super Admin: go to another node (same login). The page reloads so every
-  // list is read again from that node.
-  const switchNode = useCallback((key) => {
-    nodeStore.set(key);
-    window.location.assign("/");
-  }, []);
+  // Super Admin: go to another node (same login), without reloading the page:
+  // behind the cover the node changes, the account is read again from that
+  // node, and every page / list starts fresh for it.
+  const switchNode = useCallback(
+    (key) =>
+      runTransition(key, async () => {
+        nodeStore.set(key);
+        setNode(nodeByKey(key));
+        try {
+          const { user: fresh } = await api("/auth/me");
+          setUser(fresh);
+        } catch {
+          window.location.assign("/"); // fall back to a full reload
+        }
+      }),
+    [runTransition]
+  );
 
   const value = useMemo(
     () => ({
@@ -119,6 +163,7 @@ export function AuthProvider({ children }) {
       chooseNode,
       leaveNode,
       switchNode,
+      transition,
       isSuperAdmin: !!user?.superAdmin,
       updateProfile,
       reloadUser,
@@ -130,7 +175,7 @@ export function AuthProvider({ children }) {
       logout,
       changePassword,
     }),
-    [user, node, chooseNode, leaveNode, switchNode, checking, login, signup, logout, changePassword, updateProfile, reloadUser, claimSheet]
+    [user, node, chooseNode, leaveNode, switchNode, transition, checking, login, signup, logout, changePassword, updateProfile, reloadUser, claimSheet]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

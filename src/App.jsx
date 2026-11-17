@@ -19,6 +19,7 @@ import Disregards from "./scenes/disregards";
 import Tasking from "./scenes/tasking";
 import Criteria from "./scenes/criteria";
 import Assistant from "./components/assistant/Assistant";
+import NodeTransition from "./components/NodeTransition";
 import Placeholder from "./scenes/placeholder";
 
 // Pages that are really built. Everything else in src/navigation.js
@@ -86,7 +87,7 @@ const Pages = () => {
 
 function App() {
   const [theme, colorMode] = useMode();
-  const { user, checking, node } = useAuth();
+  const { user, checking, node, transition } = useAuth();
 
   let content;
   if (checking) {
@@ -119,6 +120,8 @@ function App() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         {content}
+        {/* smooth cover while moving between nodes */}
+        <NodeTransition transition={transition} />
       </ThemeProvider>
     </ColorModeContext.Provider>
   );
