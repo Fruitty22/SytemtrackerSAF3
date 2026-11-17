@@ -288,6 +288,10 @@ export function runBuiltin({ question, tools, today, user }) {
 
   // ---- 3. data questions
   const typeHit = matchType(text, h);
+  // a commander or Excel worksheet named in the question ("which vehicles does 3SG Rizq have")
+  const who = (h._names?.() ?? [])
+    .filter((n) => n.length >= 3 && lower.includes(n.toLowerCase()))
+    .sort((a, b) => b.length - a.length)[0];
   const status = /\b(unavailable|not available|not ava|down|unserviceable|u\/s|broken|can'?t (be )?(used|deploy))\b/i.test(lower)
     ? "unavailable"
     : /\b(deployed|in use|out on)\b/i.test(lower)
@@ -302,17 +306,18 @@ export function runBuiltin({ question, tools, today, user }) {
     (fields.length > 0 && !CHANGE.test(lower)) ||
     (typeHitEarly(text, h) && text.split(/\s+/).length <= 6);
 
-  if (isData && (status || typeHit || reasonField) && !/\bhow (do|can|to)\b/i.test(lower)) {
-    if (/\b(how many|count|number of|total)\b/i.test(lower) && !reasonField && !/\b(which|list|show)\b/i.test(lower)) {
-      return reply(summaryText(h.fleet_summary({ type: typeHit ?? undefined }), typeHit, status));
+  if ((isData || who) && (status || typeHit || reasonField || who) && !/\bhow (do|can|to)\b/i.test(lower)) {
+    if (/\b(how many|count|number of|total|summary|overview|readiness)\b/i.test(lower) && !reasonField && !/\b(which|list|show)\b/i.test(lower)) {
+      return reply(summaryText(h.fleet_summary({ type: typeHit ?? undefined, commander: who ?? undefined }), typeHit, status, who));
     }
     const list = h.search_vehicles({
       status: status ?? undefined,
       type: typeHit ?? undefined,
       reason: reasonField ?? undefined,
+      commander: who ?? undefined,
       limit: 60,
     });
-    const label = [typeHit, status && { unavailable: DEPLOY_LABELS.no, deployed: DEPLOY_LABELS.deployed, available: DEPLOY_LABELS.yes }[status], reasonField && `with ${reasonField}`]
+    const label = [typeHit, status && { unavailable: DEPLOY_LABELS.no, deployed: DEPLOY_LABELS.deployed, available: DEPLOY_LABELS.yes }[status], reasonField && `with ${reasonField}`, who && `of ${who}`]
       .filter(Boolean)
       .join(" ");
     return reply(listText(list, label || "vehicles"));
@@ -449,8 +454,8 @@ function matchType(text, h) {
   );
 }
 
-function summaryText(s, type, status) {
-  const head = `${type ? `**${type}**` : "Your fleet"} today (${s.date}): **${s.total}** vehicles`;
+function summaryText(s, type, status, who) {
+  const head = `${type ? `**${type}**` : who ? `**${who}**'s vehicles` : "Your fleet"} today (${s.date}): **${s.total}** vehicles`;
   const lines = [
     head,
     `- ${DEPLOY_LABELS.yes}: ${s[DEPLOY_LABELS.yes]}`,
@@ -459,8 +464,8 @@ function summaryText(s, type, status) {
     `- Readiness: ${s.readinessPercent}%`,
   ];
   if (s.topReasons.length) lines.push("", `Most common reasons: ${s.topReasons.slice(0, 6).map(([r, n]) => `${r} (${n})`).join(", ")}`);
-  if (!type) {
-    const types = Object.entries(s.perType).sort((a, b) => b[1].unavailable - a[1].unavailable).slice(0, 6);
+  if (!type && s.total) {
+    const types = Object.entries(s.perType).sort((a, b) => b[1].unavailable - a[1].unavailable || a[0].localeCompare(b[0]));
     if (types.length) {
       lines.push("", "By type (available / deployed / unavailable):");
       for (const [t, c] of types) lines.push(`- ${t}: ${c.available} / ${c.deployed} / ${c.unavailable}`);
@@ -477,12 +482,13 @@ function listText(list, rawLabel) {
   for (const v of list.vehicles) {
     lines.push(`- **${v.mid}** ${v.type} - ${v.status}${v.reasons.length ? `: ${v.reasons.join(", ")}` : ""}`);
   }
+  if (list.found > list.shown) lines.push(`...and ${list.found - list.shown} more - add a type or reason to narrow it down.`);
   return lines.join("\n");
 }
 
 function vehicleText(v) {
   if (v.error) return v.error;
-  const lines = [`**${v.mid}** - ${v.type} - **${v.status}**`, `Commander: ${v.commander}`];
+  const lines = [`**${v.mid}** - ${v.type} - **${v.status}**`, `Commander: ${v.commander}${v.worksheet && v.worksheet !== v.commander ? ` (worksheet ${v.worksheet})` : ""}`];
   if (v.reasons.length) lines.push(`Why: ${v.reasons.join(", ")}`);
   const blocked = v.blockedFields.filter((f) => f.value);
   if (blocked.length) lines.push(`Blocked fields: ${blocked.map((f) => `${f.field}: ${f.value}${f.counted ? "" : " (ignored)"}`).join(", ")}`);

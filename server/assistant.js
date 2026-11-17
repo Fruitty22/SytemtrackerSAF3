@@ -64,11 +64,11 @@ const TOOLS = [
       properties: {
         mids: { type: "array", items: { type: "string" }, description: "Exact MIDs" },
         type: { type: "string", description: "Vehicle type (spelling is matched loosely)" },
-        status: { type: "string", enum: ["available", "deployed", "unavailable"] },
+        status: { type: "string", enum: ["available", "deployed", "unavailable"], description: "available, deployed or unavailable (lower case)" },
         reason: { type: "string", description: "Field in the reasons, e.g. OVERSEAS, AIRCON, VOR" },
         text: { type: "string", description: "Text in MID, type, remarks or a field value" },
-        commander: { type: "string" },
-        limit: { type: "integer", description: "Default 25" },
+        commander: { type: "string", description: "Commander's name or the Excel worksheet name, e.g. 3SG Rizq" },
+        limit: { type: "integer", description: "Default 60" },
       },
     },
   },
@@ -182,7 +182,9 @@ const systemText = ({ user, today, page }) =>
   "You are the assistant in the Fleet Admin Dashboard (SAF transport fleet serviceability web app, Singapore). " +
   "Status: AVAILABLE; DEPLOYED (out on TASKING / SELF DRIVE / TLOAN / OVERSEAS or a tasking booking); UNAVAILABLE (VOR STATUS has X, " +
   "STANDBY or another blocked field has text, a Y/N maintenance item is N, or a servicing booking today). " +
-  "Rules: use tools for ANY fleet data, never guess. For how-to questions call help_guide and answer with exact page and button names. " +
+  "Rules: use tools for ANY fleet data (it is the data imported from the Excel files), never guess or invent MIDs, names or numbers. " +
+  "Quote counts exactly as the tool gives them (found / total). When listing, list every vehicle returned; if found > shown, say how many more there are. " +
+  "A commander may be named by account or by Excel worksheet name - pass it as commander. For how-to questions call help_guide and answer with exact page and button names. " +
   "For changes or bookings call the propose_* tools; the user must press Confirm on each card, so say it is ready to confirm, never saved. " +
   "You cannot delete vehicles or change accounts, disregards or criteria. Ask one short question if unclear. " +
   "Answer briefly; use **bold** and '- ' bullets, no tables. " +
@@ -206,6 +208,29 @@ const HELP_TOOL = {
 const GROQ_MODELS = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// A tool result as JSON of at most `max` characters, always valid: long
+// vehicle / booking lists are shortened and "shown" / "note" say how many.
+const RESULT_MAX = 12000;
+export function fitResult(result, max = RESULT_MAX) {
+  let json = JSON.stringify(result);
+  if (json.length <= max || !result || typeof result !== "object") return json.length <= max ? json : JSON.stringify({ error: "Too much data - ask for a narrower list." });
+  const key = Array.isArray(result.vehicles) ? "vehicles" : Array.isArray(result.bookings) ? "bookings" : null;
+  if (!key) {
+    const slim = { ...result };
+    delete slim.perCommander;
+    json = JSON.stringify(slim);
+    return json.length <= max ? json : json.slice(0, 0) + JSON.stringify({ error: "Too much data - ask for a narrower list." });
+  }
+  let n = result[key].length;
+  while (n > 0) {
+    n = Math.floor(n * 0.8);
+    const out = { ...result, [key]: result[key].slice(0, n), shown: n, note: `Only the first ${n} of ${result.found ?? result[key].length} are listed - say how many there are in total and offer to narrow down (by type, commander or reason).` };
+    json = JSON.stringify(out);
+    if (json.length <= max) return json;
+  }
+  return JSON.stringify({ ...result, [key]: [], note: "List too long - give the total and ask the user to narrow it down." });
+}
 
 // OpenAI-style chat completions with tool calls (Groq, and most other services)
 async function runOpenAI({ provider, user, today, history, tools, page }) {
@@ -245,7 +270,10 @@ async function runOpenAIModel({ provider, model, user, today, history, tools, pa
           tools: fnTools,
           tool_choice: "auto",
           temperature: 0.2,
-          max_tokens: 700,
+          // gpt-oss models "think" before answering and that counts here too:
+          // too small a limit cut answers off half way (or left them empty)
+          max_tokens: 2000,
+          ...(/gpt-oss/.test(model ?? "") ? { reasoning_effort: "low" } : {}),
         }),
       });
       data = await res.json().catch(() => ({}));
@@ -269,6 +297,11 @@ async function runOpenAIModel({ provider, model, user, today, history, tools, pa
       throw err;
     }
     const msg = data.choices?.[0]?.message ?? {};
+    if (data.choices?.[0]?.finish_reason === "length" && !String(msg.content ?? "").trim() && !msg.tool_calls?.length) {
+      const e = aiError(429); // try the next model, then the built-in assistant
+      e.message = "answer too long";
+      throw e;
+    }
     const calls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
     if (!calls.length || round === MAX_TOOL_ROUNDS) {
       const reply = String(msg.content ?? "").trim();
@@ -287,8 +320,9 @@ async function runOpenAIModel({ provider, model, user, today, history, tools, pa
       } catch (err) {
         result = { error: err instanceof SyntaxError ? "The tool input wasn't valid JSON." : "That lookup failed." };
       }
-      // keep tool results small (free tier token limit)
-      messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result).slice(0, 9000) });
+      // keep tool results small (free tier token limit) WITHOUT cutting the
+      // JSON in half: long lists are shortened and the model is told so
+      messages.push({ role: "tool", tool_call_id: call.id, content: fitResult(result) });
     }
   }
   return { reply: "Sorry, I couldn't work that out.", actions: tools.actions };
@@ -363,8 +397,25 @@ export function assistantRoutes(ctx) {
         status: statusLabel(d.status),
         reasons: d.reasons.map(reasonText),
         commander: ownerName(v),
+        ...(v.sourceSheet && v.sourceSheet !== ownerName(v) ? { worksheet: v.sourceSheet } : {}),
         ...(v.remarks ? { remarks: v.remarks } : {}),
       };
+    };
+    // the AI (or a person) may say "UNAVAILABLE", "not available", "down"...
+    const normStatus = (x) => {
+      const t = String(x ?? "").toLowerCase().replace(/[^a-z ]/g, " ").trim();
+      if (!t) return null;
+      if (/\b(un ?available|not available|not ava|down|unserviceable|u s|broken|nmc)\b/.test(t)) return "unavailable";
+      if (/\b(deployed|in use|out)\b/.test(t)) return "deployed";
+      if (/\b(available|serviceable|ava|ready|free|ok)\b/.test(t)) return "available";
+      return null;
+    };
+    // a commander can be named by their account or by the Excel worksheet the vehicles came from
+    const ofCommander = (v, who) => {
+      const q = String(who ?? "").trim().toLowerCase();
+      if (!q) return true;
+      const names = [ownerName(v), v.sourceSheet].filter(Boolean).map((n) => String(n).toLowerCase());
+      return names.some((n) => n.includes(q) || q.includes(n) || titlesMatch(n, q));
     };
     const sameType = (a, b) => normalizeTitle(a) === normalizeTitle(b) || titlesMatch(a, b);
     const fieldName = (name, list) => list.find((f) => normalizeTitle(f) === normalizeTitle(name)) ?? list.find((f) => titlesMatch(f, name));
@@ -426,10 +477,15 @@ export function assistantRoutes(ctx) {
     };
 
     const handlers = {
+      // (built-in assistant only) every commander / worksheet name this user can see
+      _names() {
+        return [...new Set(visible.flatMap((v) => [ownerName(v), v.sourceSheet]).filter((n) => n && n !== "Unassigned"))];
+      },
+
       fleet_summary({ type, commander }) {
         let list = visible;
         if (type) list = list.filter((v) => sameType(v.type, type));
-        if (commander) list = list.filter((v) => titlesMatch(ownerName(v), commander) || ownerName(v).toLowerCase().includes(commander.toLowerCase()));
+        if (commander) list = list.filter((v) => ofCommander(v, commander));
         const totals = { available: 0, deployed: 0, unavailable: 0 };
         const perType = {};
         const perCommander = {};
@@ -453,6 +509,7 @@ export function assistantRoutes(ctx) {
           readinessPercent: list.length ? Math.round((totals.available / list.length) * 100) : 0,
           perType,
           perCommander: user.role === "admin" ? perCommander : undefined,
+          worksheets: [...new Set(list.map((v) => v.sourceSheet).filter(Boolean))].length,
           topReasons: Object.entries(reasons).sort((a, b) => b[1] - a[1]).slice(0, 15),
         };
       },
@@ -464,9 +521,10 @@ export function assistantRoutes(ctx) {
           list = list.filter((v) => want.has(v.mid));
         }
         if (type) list = list.filter((v) => sameType(v.type, type) || v.type.includes(String(type).toUpperCase()));
-        if (commander) list = list.filter((v) => ownerName(v).toLowerCase().includes(String(commander).toLowerCase()));
+        if (commander) list = list.filter((v) => ofCommander(v, commander));
         let rows = list.map((v) => ({ v, d: statusOf(v) }));
-        if (status) rows = rows.filter((r) => r.d.status === status);
+        const st = normStatus(status);
+        if (st) rows = rows.filter((r) => r.d.status === st);
         if (reason) {
           const q = String(reason).toUpperCase();
           rows = rows.filter((r) => r.d.reasons.some((x) => reasonText(x).toUpperCase().includes(q)));
@@ -474,10 +532,12 @@ export function assistantRoutes(ctx) {
         if (text) {
           const q = String(text).toUpperCase();
           rows = rows.filter(({ v }) =>
-            [v.mid, v.type, v.remarks, ...Object.values(v.blocks ?? {}).map((b) => b?.value)].some((x) => String(x ?? "").toUpperCase().includes(q))
+            [v.mid, v.type, v.remarks, v.sourceSheet, ownerName(v), ...Object.values(v.blocks ?? {}).map((b) => b?.value)].some((x) =>
+              String(x ?? "").toUpperCase().includes(q)
+            )
           );
         }
-        const max = Math.min(Math.max(Number(limit) || 25, 1), 100);
+        const max = Math.min(Math.max(Number(limit) || 60, 1), 200);
         return { found: rows.length, shown: Math.min(rows.length, max), vehicles: rows.slice(0, max).map(({ v }) => brief(v)) };
       },
 
