@@ -6,7 +6,7 @@
 // To add a node: add a line here and push. `key` is used in the database and
 // must never change once a node has data; `name` is what people see.
 export const NODES = [
-  { key: "ktn", name: "KTN" },
+  { key: "ktn", name: "KHATIB" },
   { key: "kranji", name: "KRANJI" },
   { key: "mandai-hill", name: "MANDAI HILL" },
   { key: "ltc", name: "LTC" },

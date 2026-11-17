@@ -33,7 +33,7 @@ import { tokens } from "../theme";
 // `notes` (the captions for markers 1, 2, 3).
 //
 // Same props as HowToUseDialog.jsx, so the two can be swapped:
-//   open, onClose, nodeName (e.g. "KTN"), signupOpen
+//   open, onClose, nodeName (e.g. "KHATIB"), signupOpen
 
 const d = tokens("dark");
 
@@ -244,7 +244,7 @@ const SceneLogin = ({ nodeName }) => (
     <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
       <Box sx={{ width: "62%", p: 1.5, borderRadius: "12px", backgroundColor: "rgba(255,255,255,0.09)", border: `1px solid ${C.line}` }}>
         <Tag tone="accent" sx={{ mb: 1 }}>
-          NODE: {nodeName || "KTN"}
+          NODE: {nodeName || "KHATIB"}
         </Tag>
         <Typography sx={{ fontWeight: 800, fontSize: 14, mb: 1 }}>Welcome back</Typography>
         {[PersonOutlinedIcon, LockOutlinedIcon].map((Icon, i) => (

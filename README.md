@@ -155,21 +155,21 @@ Edit `shared/config.js`, then restart `npm run dev`:
 - `BLOCK_FIELDS` / `MAINTENANCE_FIELDS` are only the starting criteria: the live list is
   in the database (Manage Criteria page, or the import's Scan criteria step)
 
-## Nodes (KTN, KRANJI, MANDAI HILL, LTC, HQ, ALPHA, CHARLIE, CSC)
+## Nodes (KHATIB, KRANJI, MANDAI HILL, LTC, HQ, ALPHA, CHARLIE, CSC)
 
 The first page asks which node you're in; then you log in to that node. Each node
 is a separate fleet with its **own** accounts, vehicles, Excel imports, criteria,
 disregards, bookings, Remove all and Undo. Nobody in one node can see another
 node (the server checks the node on every request).
 
-- **Super Admin**: the `admin` account in KTN. Logs in on any node's page with
+- **Super Admin**: the `admin` account in KHATIB. Logs in on any node's page with
   the same username and password, and switches node with the node button at the
-  top. More Super Admins: `SUPER_ADMINS=username1,username2` (KTN accounts with
+  top. More Super Admins: `SUPER_ADMINS=username1,username2` (KHATIB accounts with
   the Admin role) in Vercel's environment variables.
 - **Setting up a node**: Super Admin -> switch to the node -> Accounts -> Add
   account -> Role **Admin**. That Admin then imports the node's Excel files and
   adds its commanders. (Self sign-up in a node only makes Fleet Commanders.)
-- **Data**: KTN keeps the original database row (`main` / `db.json`); other nodes
+- **Data**: KHATIB (key `ktn`) keeps the original database row (`main` / `db.json`); other nodes
   are `node:<key>` rows in Supabase (`db-<key>.json` locally).
 - **Adding a node**: add a line to `shared/nodes.js` and push.
 
