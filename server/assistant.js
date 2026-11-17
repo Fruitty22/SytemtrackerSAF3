@@ -163,7 +163,14 @@ function pickProvider() {
     };
   }
   if (env.AI_API_KEY && env.AI_BASE_URL) {
-    return { kind: "openai", key: env.AI_API_KEY, base: env.AI_BASE_URL, model: env.AI_MODEL || "", label: "AI" };
+    const gemini = /generativelanguage\.googleapis\.com/.test(env.AI_BASE_URL);
+    return {
+      kind: "openai",
+      key: env.AI_API_KEY.trim(),
+      base: env.AI_BASE_URL.trim(),
+      model: (env.AI_MODEL || "").trim(),
+      label: gemini ? `AI (Gemini${env.AI_MODEL ? ` ${env.AI_MODEL.trim().replace(/^models\//, "")}` : ""})` : "AI",
+    };
   }
   if (env.ANTHROPIC_API_KEY) return { kind: "anthropic", key: env.ANTHROPIC_API_KEY, label: "AI (Claude)" };
   return { kind: "builtin", label: "Built-in" };
@@ -275,7 +282,8 @@ async function runOpenAIModel({ provider, model, user, today, history, tools, pa
           temperature: 0.2,
           // gpt-oss models "think" before answering and that counts here too:
           // too small a limit cut answers off half way (or left them empty)
-          max_tokens: 2000,
+          // (Gemini "thinking" models need more room for the same answer)
+          max_tokens: /gemini/i.test(model ?? "") ? 4096 : 2000,
           ...(/gpt-oss/.test(model ?? "") ? { reasoning_effort: "low" } : {}),
         }),
       });
@@ -761,7 +769,8 @@ export function assistantRoutes(ctx) {
         },
         body: JSON.stringify({
           model,
-          max_tokens: 2000,
+          // (Gemini "thinking" models need more room for the same answer)
+          max_tokens: /gemini/i.test(model ?? "") ? 4096 : 2000,
           system,
           tools: tools.list,
           messages,
