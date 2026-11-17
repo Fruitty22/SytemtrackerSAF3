@@ -22,6 +22,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
 import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
 import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
+import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
 import { themeSettings, tokens } from "../../theme";
 import { MAIN_NODE } from "../../../shared/nodes.js";
 import { useAuth } from "../../auth/AuthContext";
@@ -29,6 +30,7 @@ import { api } from "../../api/client";
 import { drift, noMotion, rise, roll } from "../../components/FleetVehicle";
 import { NodeVehicle } from "../../components/NodeVehicles";
 import ArgusBrand from "../../components/ArgusBrand";
+import HowToUseDialog from "../../components/HowToUseDialog";
 
 const emptySignup = { name: "", username: "", password: "", confirm: "" };
 
@@ -118,6 +120,7 @@ const Login = () => {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false); // the "How to use ARGUS" guide
 
   // with no accounts yet, open on "Sign up" (the first account becomes admin)
   useEffect(() => {
@@ -187,6 +190,25 @@ const Login = () => {
       WebkitTextFillColor: "#fff",
       borderRadius: "12px",
     },
+  };
+
+  const helpSx = {
+    alignSelf: "flex-end",
+    mt: 3,
+    position: { xs: "static", md: "absolute" },
+    right: { md: 30 },
+    bottom: { md: 24 },
+    textTransform: "none",
+    fontWeight: 600,
+    fontSize: 13.5,
+    color: "rgba(255,255,255,0.85)",
+    borderRadius: "999px",
+    px: 1.75,
+    py: 0.6,
+    border: "1px solid rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    transition: "background-color 0.15s, border-color 0.15s",
+    "&:hover": { backgroundColor: "rgba(255,255,255,0.14)", borderColor: "rgba(255,255,255,0.4)" },
   };
 
   const rowSx = { display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: "16px" };
@@ -360,7 +382,8 @@ const Login = () => {
             <Box
               sx={{
                 m: { xs: "10px", md: "16px" },
-                p: { xs: "26px 20px 28px", sm: "40px 44px" },
+                p: { xs: "26px 20px 20px", sm: "40px 44px 64px" },
+                position: "relative",
                 borderRadius: "20px",
                 display: "flex",
                 flexDirection: "column",
@@ -578,9 +601,22 @@ const Login = () => {
                   </Button>
                 </Box>
               )}
+
+              <Button
+                type="button"
+                onClick={() => setHelpOpen(true)}
+                startIcon={<HelpOutlineOutlinedIcon fontSize="small" />}
+                aria-haspopup="dialog"
+                sx={helpSx}
+              >
+                How to use ARGUS
+              </Button>
             </Box>
           </Box>
         </Box>
+
+        {/* the step-by-step guide (src/components/HowToUseDialog.jsx) */}
+        <HowToUseDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
       </ThemeProvider>
     </Box>
   );
