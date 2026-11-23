@@ -95,13 +95,6 @@ export const navSections = [
         roles: ADMIN,
       },
       {
-        key: "next-day",
-        title: "Next Day",
-        to: "/next-day",
-        icon: SkipNextOutlinedIcon,
-        roles: ADMIN,
-      },
-      {
         key: "nc-dashboard",
         title: "NC Dashboard",
         to: "/nc-dashboard",
