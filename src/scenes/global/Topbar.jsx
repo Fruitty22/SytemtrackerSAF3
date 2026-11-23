@@ -25,6 +25,7 @@ import CloseOutlinedIcon from "@mui/icons-material/CloseOutlined";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CheckIcon from "@mui/icons-material/Check";
+import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
 import { api } from "../../api/client";
 import { NODES } from "../../../shared/nodes.js";
 import { NavList } from "./Sidebar";
@@ -36,6 +37,18 @@ import ArgusBrand from "../../components/ArgusBrand";
 import ArgusMark from "../../components/ArgusMark";
 import ClaimSheetDialog from "../../components/ClaimSheetDialog";
 
+function formatGmt8Date(date = new Date()) {
+  const formatted = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Singapore",
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+
+  return `${formatted}`;
+}
+
 const Topbar = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
@@ -43,6 +56,12 @@ const Topbar = () => {
   const { user, logout, node, switchNode, leaveNode } = useAuth();
   const [nodeAnchor, setNodeAnchor] = useState(null); // Super Admin's node menu
   const [nodeCounts, setNodeCounts] = useState({}); // key -> { accounts, vehicles }
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const openNodes = (event) => {
     setNodeAnchor(event.currentTarget);
@@ -89,6 +108,29 @@ const Topbar = () => {
         </IconButton>
         <ArgusBrand size="xs" node={node?.key} color={colors.grey[100]} captionColor={colors.greenAccent[500]} />
       </Box>
+
+      {/* Current GMT+8 date (inlined in Topbar so it appears on every page) */}
+      <Box
+        sx={{
+          display: { xs: "none", sm: "inline-flex" },
+          alignItems: "center",
+          gap: 1,
+          ml: { md: 1 },
+          px: 1.5,
+          py: 0.5,
+          borderRadius: "4px",
+          backgroundColor: colors.primary[400],
+          border: `1px solid ${colors.primary[300] ?? colors.grey[700]}`,
+          color: colors.grey[100],
+          whiteSpace: "nowrap",
+        }}
+      >
+        <CalendarTodayOutlinedIcon sx={{ fontSize: 19, color: colors.grey[300] }} />
+        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "1.6rem" }}>
+          {formatGmt8Date(now)}
+        </Typography>
+      </Box>
+
       <Box sx={{ flex: 1 }} />
       {/* which node you're in; the Super Admin can switch here */}
       {node && (
