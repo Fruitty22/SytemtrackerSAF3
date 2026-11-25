@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   Alert,
+  Autocomplete,
   Button,
   Dialog,
   DialogActions,
@@ -63,19 +64,32 @@ const VehicleDialog = ({ vehicle, defaultType = "", onClose, onSaved }) => {
             autoFocus={creating}
             required
           />
-          <TextField
-            label="Vehicle type"
-            value={form.type}
-            onChange={set("type")}
-            required
-            helperText="Pick from the list or type a new one"
-            slotProps={{ htmlInput: { list: "vehicle-type-options" } }}
+          {/* A real dropdown on every device. (It used to be a native <datalist>:
+              desktop Chrome draws that as a dropdown, but Android shows it only as
+              keyboard suggestions and iPhone Safari barely shows it at all.) */}
+          <Autocomplete
+            freeSolo
+            openOnFocus
+            forcePopupIcon
+            options={vehicleTypes}
+            value={form.type || null}
+            onChange={(_, value) => setForm((f) => ({ ...f, type: value ?? "" }))}
+            inputValue={form.type}
+            onInputChange={(_, value) => setForm((f) => ({ ...f, type: value }))}
+            slotProps={{ listbox: { sx: { maxHeight: { xs: "36vh", sm: 320 } } } }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Vehicle type"
+                required
+                helperText="Pick from the list or type a new one"
+                slotProps={{
+                  ...params.slotProps,
+                  htmlInput: { ...params.slotProps?.htmlInput, autoCapitalize: "characters", autoComplete: "off" },
+                }}
+              />
+            )}
           />
-          <datalist id="vehicle-type-options">
-            {vehicleTypes.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
           {isAdmin && (
             <TextField
               select

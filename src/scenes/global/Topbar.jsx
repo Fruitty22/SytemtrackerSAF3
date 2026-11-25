@@ -126,7 +126,7 @@ const Topbar = () => {
         }}
       >
         <CalendarTodayOutlinedIcon sx={{ fontSize: 19, color: colors.grey[300] }} />
-        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "1.6rem" }}>
+        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: "1.5rem" }}>
           {formatGmt8Date(now)}
         </Typography>
       </Box>
