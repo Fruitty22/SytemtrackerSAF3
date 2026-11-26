@@ -216,10 +216,10 @@ const Serviceable = () => {
 
       {/* COUNTS FOR WHAT'S SHOWN */}
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: "16px", mb: "16px" }}>
-        <StatBox label="Shown" value={shown.length} color={theme.palette.info.main} />
-        <StatBox label={DEPLOY_LABELS.yes} value={count("available")} color={theme.palette.success.main} />
-        <StatBox label={DEPLOY_LABELS.deployed} value={count("deployed")} color={theme.palette.info.main} />
-        <StatBox label={DEPLOY_LABELS.no} value={count("unavailable")} color={theme.palette.error.main} />
+        <StatBox label="Shown" value={shown.length} tone="total" />
+        <StatBox label={DEPLOY_LABELS.yes} value={count("available")} tone="available" />
+        <StatBox label={DEPLOY_LABELS.deployed} value={count("deployed")} tone="deployed" />
+        <StatBox label={DEPLOY_LABELS.no} value={count("unavailable")} tone="unavailable" />
       </Box>
 
       <Box sx={{ mb: "12px" }}>

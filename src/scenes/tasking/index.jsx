@@ -94,15 +94,15 @@ const Tasking = () => {
       </Box>
 
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: "16px", mb: "20px" }}>
-        <StatBox label="On tasking" value={onTasking} color={theme.palette.info.main} />
+        <StatBox label="On tasking" value={onTasking} tone="tasking" />
         <StatBox
           label={DEPLOY_LABELS.deployed}
           value={count("deployed")}
           hint="tasking, self drive, TLOAN, overseas"
-          color={theme.palette.info.dark}
+          tone="deployed"
         />
-        <StatBox label={DEPLOY_LABELS.no} value={count("unavailable")} color={theme.palette.error.main} />
-        <StatBox label={DEPLOY_LABELS.yes} value={count("available")} color={theme.palette.success.main} />
+        <StatBox label={DEPLOY_LABELS.no} value={count("unavailable")} tone="unavailable" />
+        <StatBox label={DEPLOY_LABELS.yes} value={count("available")} tone="available" />
       </Box>
 
       <Box sx={{ mb: "16px" }}>

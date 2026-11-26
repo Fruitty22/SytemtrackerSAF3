@@ -239,23 +239,23 @@ const CommanderDashboard = ({ fleetWide = false }) => {
 
       {/* SUMMARY */}
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: "16px", mb: "20px" }}>
-        <StatBox label="Vehicles" value={stats.total} color={theme.palette.info.main} />
+        <StatBox label="Vehicles" value={stats.total} tone="total" />
         <StatBox
           label={DEPLOY_LABELS.yes}
           value={stats.ava}
           hint={stats.total ? `${stats.readiness}% ready` : undefined}
-          color={theme.palette.success.main}
+          tone="available"
         />
         <StatBox
           label={DEPLOY_LABELS.deployed}
           value={stats.deployed}
           hint="tasking, self drive, TLOAN, overseas"
-          color={theme.palette.info.main}
+          tone="deployed"
         />
-        <StatBox label="On tasking" value={stats.tasking} color={theme.palette.info.dark} />
-        <StatBox label={DEPLOY_LABELS.no} value={stats.unavailable} color={theme.palette.error.main} />
-        <StatBox label="Blocked" value={stats.blocked} color={theme.palette.error.dark} />
-        <StatBox label="Need maintenance (item N)" value={stats.issues} color={theme.palette.warning.main} />
+        <StatBox label="On tasking" value={stats.tasking} tone="tasking" />
+        <StatBox label={DEPLOY_LABELS.no} value={stats.unavailable} tone="unavailable" />
+        <StatBox label="Blocked" value={stats.blocked} tone="blocked" />
+        <StatBox label="Need maintenance (item N)" value={stats.issues} tone="maintenance" />
       </Box>
 
       {!loading && mine.length === 0 ? (

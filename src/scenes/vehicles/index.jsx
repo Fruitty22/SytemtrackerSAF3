@@ -254,12 +254,12 @@ const Vehicles = () => {
 
       {/* SUMMARY */}
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: "16px", mb: "20px" }}>
-        <StatBox label="Vehicles" value={stats.total} color={colors.blueAccent[400]} />
-        <StatBox label={DEPLOY_LABELS.yes} value={stats.available} color={theme.palette.success.main} />
-        <StatBox label={DEPLOY_LABELS.deployed} value={stats.deployed} color={theme.palette.error.main} />
-        <StatBox label={DEPLOY_LABELS.no} value={stats.unavailable} color={theme.palette.warning.main} />
-        <StatBox label="Blocked" value={stats.blocked} color={theme.palette.error.dark} />
-        <StatBox label="Need maintenance (item N)" value={stats.issues} color={theme.palette.warning.main} />
+        <StatBox label="Vehicles" value={stats.total} tone="total" />
+        <StatBox label={DEPLOY_LABELS.yes} value={stats.available} tone="available" />
+        <StatBox label={DEPLOY_LABELS.deployed} value={stats.deployed} tone="deployed" />
+        <StatBox label={DEPLOY_LABELS.no} value={stats.unavailable} tone="unavailable" />
+        <StatBox label="Blocked" value={stats.blocked} tone="blocked" />
+        <StatBox label="Need maintenance (item N)" value={stats.issues} tone="maintenance" />
       </Box>
 
       {/* ACTIONS */}
