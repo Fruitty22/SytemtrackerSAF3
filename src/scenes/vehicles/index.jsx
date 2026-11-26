@@ -11,7 +11,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { DataGrid } from "@mui/x-data-grid";
+import { DataGrid } from "../../components/DataGrid";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";

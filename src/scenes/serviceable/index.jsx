@@ -16,7 +16,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { DataGrid } from "@mui/x-data-grid";
+import { DataGrid } from "../../components/DataGrid";
 import Header from "../../components/Header";
 import StatBox from "../../components/StatBox";
 import VehicleFilters, { EMPTY_FILTERS, filterVehicles } from "../../components/VehicleFilters";
