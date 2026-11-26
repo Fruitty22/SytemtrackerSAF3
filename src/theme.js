@@ -1,6 +1,6 @@
 import { createContext, useState, useMemo } from "react";
 import { usePrefs } from "./prefs/PrefsContext";
-import { createTheme } from "@mui/material/styles";
+import { createTheme, alpha } from "@mui/material/styles";
 
 // ARGUS theme: "Abyss Teal" - near-black sea-teal background, deep teal accents.
 // To change the theme, change BRAND (used by the logo, sidebar, calendar, guide,
@@ -268,6 +268,37 @@ export const themeSettings = (mode, { glass = false } = {}) => {
       MuiRadio: { defaultProps: { color: "secondary" } },
       MuiSwitch: { defaultProps: { color: "secondary" } },
       MuiTextField: { defaultProps: { color: "secondary" } },
+      // Buttons without their own colour (EDIT, BOOK, ...) use the teal accent:
+      // MUI's default "primary" is the page background colour here, so they
+      // were nearly invisible in dark mode. Text / outlined ones use the
+      // brighter teal so they stand out on dark panels and glass.
+      MuiButton: {
+        defaultProps: { color: "secondary" },
+        styleOverrides: {
+          ...(g ? { contained: { borderRadius: 12, boxShadow: "inset 0 1px 0 rgba(255,255,255,.35), 0 6px 16px rgba(47,156,144,.28)" }, outlined: { borderRadius: 12 } } : {}),
+          root: {
+            variants: [
+              {
+                // EDIT, BOOK, ...: a light teal pill, bold, so they read as buttons on dark panels and glass
+                props: { variant: "text", color: "secondary" },
+                style: {
+                  color: mode === "dark" ? BRAND.accentText : "#1c6f68",
+                  fontWeight: 700,
+                  backgroundColor: alpha(mode === "dark" ? BRAND.accentText : "#1c6f68", 0.12),
+                  borderRadius: 10,
+                  paddingLeft: 12,
+                  paddingRight: 12,
+                  "&:hover": { backgroundColor: alpha(mode === "dark" ? BRAND.accentText : "#1c6f68", 0.22) },
+                },
+              },
+              {
+                props: { variant: "outlined", color: "secondary" },
+                style: { color: mode === "dark" ? BRAND.accentText : "#1c6f68", borderColor: alpha(mode === "dark" ? BRAND.accentText : "#1c6f68", 0.6), fontWeight: 700 },
+              },
+            ],
+          },
+        },
+      },
       ...(g
         ? {
             MuiCssBaseline: {
@@ -316,12 +347,6 @@ export const themeSettings = (mode, { glass = false } = {}) => {
                   boxShadow: g.shadow,
                   overflow: "hidden",
                 },
-              },
-            },
-            MuiButton: {
-              styleOverrides: {
-                contained: { borderRadius: 12, boxShadow: "inset 0 1px 0 rgba(255,255,255,.35), 0 6px 16px rgba(47,156,144,.28)" },
-                outlined: { borderRadius: 12 },
               },
             },
             MuiOutlinedInput: { styleOverrides: { root: { borderRadius: 12 } } },

@@ -22,6 +22,7 @@ import KeyOutlinedIcon from "@mui/icons-material/KeyOutlined";
 import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlined";
 import TableChartOutlinedIcon from "@mui/icons-material/TableChartOutlined";
 import BlurOnOutlinedIcon from "@mui/icons-material/BlurOnOutlined";
+import BlurOffOutlinedIcon from "@mui/icons-material/BlurOffOutlined";
 import LabelOutlinedIcon from "@mui/icons-material/LabelOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
@@ -201,6 +202,16 @@ const Topbar = () => {
           );
         })}
       </Menu>
+      {/* glass look on / off (also in the account menu) */}
+      <IconButton
+        onClick={toggleGlass}
+        title={glass ? "Glass effect: on - click to turn off" : "Glass effect: off - click to turn on"}
+        aria-label="Glass effect on or off (top bar)"
+        aria-pressed={glass}
+        sx={glass ? { color: theme.palette.mode === "dark" ? "#4fb3bb" : "#1c6f68" } : undefined}
+      >
+        {glass ? <BlurOnOutlinedIcon /> : <BlurOffOutlinedIcon />}
+      </IconButton>
       <IconButton
         onClick={colorMode.toggleColorMode}
         title="Switch light / dark mode"
