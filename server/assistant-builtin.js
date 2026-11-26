@@ -122,7 +122,7 @@ function fieldMatchers() {
 }
 
 // every field mentioned in a piece of text: [{ name, kind, index, end }]
-function findFields(text) {
+export function findFields(text) {
   const found = [];
   const taken = [];
   for (const m of fieldMatchers()) {
@@ -204,6 +204,45 @@ export function runBuiltin({ question, tools, today, user }) {
     const r = h.propose_booking({ kind, title, start, end, mids: known, tasking: kind === "tasking" ? title : undefined });
     if (!r.prepared) return reply(`I couldn't prepare that booking: ${r.error}`);
     return reply(`Here is the booking - check and press **Confirm** to save.${unknownMids.length ? `\n- Not found: ${unknownMids.join(", ")}` : ""}`);
+  }
+
+  // ---- 0b. disregards for a whole vehicle TYPE: "ignore p plate for all mb g300",
+  //          "don't count aircon for 6 tonners", "count canopy again for luv", "disregard FE for every vehicle"
+  //          criteria (Admin): "make aircon a maintenance criteria", "stop using IVC 2 as a criteria"
+  const howQ = /^\s*(how|what|why|where|can i|how do)\b/i.test(lower);
+  const COUNT_AGAIN = /\b(count\w*\s+(?:\S+\s+){0,4}again|start counting|un-?ignore|stop ignoring|don'?t ignore|do not ignore|re-?count|include|undisregard|remove .*disregard)\b/i;
+  const IGNORE = /\b(disregard\w*|ignore\w*|don'?t count|do not count|not count(ed)?|stop counting|exclude|skip)\b/i;
+  const wantsCriteria = /\bcriteri/i.test(lower) && !howQ && /\b(make|set|change|add|remove|delete|stop|turn|as|to|into|be)\b/i.test(lower);
+  if (wantsCriteria && fields.length) {
+    const category = /\b(not a|no longer|stop|never|ignore|remove|delete)\b/i.test(lower)
+      ? (/\b(remove|delete)\b/i.test(lower) ? null : "IGNORE")
+      : /\bblock/i.test(lower) ? "BLOCKED" : /\b(maint|y\/?n|item)/i.test(lower) ? "MAINTENANCE" : null;
+    const remove = /\b(remove|delete)\b/i.test(lower);
+    if (!category && !remove) return reply('Which category? e.g. "make AIRCON a maintenance criteria", "make BATTERY a blocked criteria" or "stop using IVC 2 as a criteria".');
+    const r = h.propose_criteria(remove ? { remove: fields.map((f) => f.name) } : { set: fields.map((f) => ({ name: f.name, category })) });
+    if (!r.prepared) return reply(r.error);
+    return reply("Here is the criteria change - it applies to **every vehicle in this node**. Check and press **Confirm** to save.");
+  }
+  if (!howQ && !known.length && fields.length && (IGNORE.test(lower) || COUNT_AGAIN.test(lower))) {
+    const again = COUNT_AGAIN.test(lower);
+    const everyType = /\b(every|all|whole)\s+(vehicles?|types?|fleet)\b|\bwhole fleet\b|\bfor (all|everything|everyone)\s*$/i.test(lower);
+    // the type words: what's left after taking out the field names and the verbs
+    let rest = text;
+    for (const f of [...fields].sort((a, b) => b.index - a.index)) rest = rest.slice(0, f.index) + " " + rest.slice(f.end);
+    rest = rest
+      .replace(new RegExp(COUNT_AGAIN.source, "gi"), " ")
+      .replace(new RegExp(IGNORE.source, "gi"), " ")
+      .replace(/\b(please|pls|can you|could you|for|on|of|in|the|all|every|whole|fleet|vehicles?|types?|items?|fields?|criteria|and|again|from|now|to|be|as|it|them|type)\b/gi, " ")
+      .replace(/[^a-z0-9() -]+/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const typeQuery = everyType && !rest ? "all" : rest || matchType(text, h) || "";
+    if (!typeQuery) return reply(`For which vehicle type? e.g. "ignore ${fields[0].name} for all MB G300" or "... for every vehicle".`);
+    const names = fields.map((f) => f.name);
+    const r = h.propose_disregard(again ? { type: typeQuery, count: names } : { type: typeQuery, ignore: names });
+    if (!r.prepared) return reply(r.error.replace(/ Ask the user which one\.$/, ' Which one did you mean?'));
+    const lines = r.cards.map((c) => `- **${c.type}**: ${c.vehicles} vehicle${c.vehicles === 1 ? "" : "s"}${Object.entries(c.statusChanges).map(([k, n]) => `, ${n} go ${k}`).join("")}`);
+    return reply(`${again ? "Count again" : "Stop counting"} **${names.join(", ")}** for every vehicle of ${r.cards.length === 1 ? "this type" : "these types"}:\n${lines.join("\n")}\n\nCheck each card and press **Confirm** to save.`);
   }
 
   // ---- 1. a change: "set 21714 aircon N", "put 21717 on tasking XCA",

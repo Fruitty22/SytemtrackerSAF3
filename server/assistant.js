@@ -11,7 +11,7 @@
 // If the AI service fails or its free quota is used up, the built-in one answers instead.
 //   APP_TIMEZONE        optional, default Asia/Singapore ("today" for bookings)
 import { HELP_GUIDE } from "./assistant-guide.js";
-import { runBuiltin, guideSection, guideTitles } from "./assistant-builtin.js";
+import { runBuiltin, guideSection, guideTitles, findFields } from "./assistant-builtin.js";
 import {
   BLOCK_FIELDS,
   DEPLOY_LABELS,
@@ -109,6 +109,37 @@ const TOOLS = [
     name: "get_rules",
     description: "Field names (blocked fields, Y/N items) and disregard rules per vehicle type.",
     input_schema: { type: "object", properties: { type: { type: "string", description: "Only this vehicle type (optional)" } } },
+  },
+  {
+    name: "propose_disregard",
+    description:
+      "Prepare (NOT save) a disregard change for a whole VEHICLE TYPE: the items stop (ignore) or start again (count) counting for EVERY vehicle of that type in this node. " +
+      "Use for 'ignore/disregard/don't count X for MB G300', 'count X again for all 6 tons'. type can be loose ('mb', '6 ton', 'luv') - every matching type gets a card; type \"all\" = every type. Never use propose_vehicle_change for this.",
+    input_schema: {
+      type: "object",
+      properties: {
+        type: { type: "string", description: "Vehicle type, loose wording ok, or \"all\"" },
+        ignore: { type: "array", items: { type: "string" }, description: "Items/fields to stop counting" },
+        count: { type: "array", items: { type: "string" }, description: "Items/fields to count again" },
+      },
+      required: ["type"],
+    },
+  },
+  {
+    name: "propose_criteria",
+    description:
+      "Admin only. Prepare (NOT save) a change to the criteria list, which applies to the WHOLE node fleet: category MAINTENANCE (Y/N item), BLOCKED (blocks when filled) or IGNORE (not a criteria, never counted). " +
+      "Use for 'make X a maintenance criteria', 'stop using X as a criteria for every vehicle', 'add column X as blocked'. remove = delete the criteria.",
+    input_schema: {
+      type: "object",
+      properties: {
+        set: {
+          type: "array",
+          items: { type: "object", properties: { name: { type: "string" }, category: { type: "string", enum: ["MAINTENANCE", "BLOCKED", "IGNORE"] } }, required: ["name", "category"] },
+        },
+        remove: { type: "array", items: { type: "string" } },
+      },
+    },
   },
   {
     name: "propose_vehicle_change",
@@ -209,7 +240,9 @@ const systemText = ({ user, today, page, nodeName }) =>
   "Quote counts exactly as the tool gives them (found / total). When listing, list every vehicle returned; if found > shown, say how many more there are. " +
   "A commander may be named by account or by Excel worksheet name - pass it as commander. For how-to questions call help_guide and answer with exact page and button names. " +
   "For changes or bookings call the propose_* tools; the user must press Confirm on each card, so say it is ready to confirm, never saved. " +
-  "You cannot delete vehicles or change accounts, disregards or criteria. Ask one short question if unclear. " +
+  "You cannot delete vehicles or change accounts. Ask one short question if unclear. " +
+  "DISREGARDS are per VEHICLE TYPE and apply to every vehicle of that type (e.g. 'ignore P-PLATE for all MB G300', 'don't count aircon for 6 tonners', 'count canopy again for luv'): use propose_disregard, never propose_vehicle_change. " +
+  "CRITERIA (Admin only) decide whether a column counts at all for the whole fleet: use propose_criteria. If a type name doesn't match, show the types and ask. " +
   "For comparisons, rankings, 'which commander/type has most', breakdowns or 'analyse' call analyse_fleet (one call), not many searches. " +
   "Understand loose wording: 6 tonner = 6 TON, luv = AGILIS AUTO (LUV), u/s / down / not ava = unavailable, svc = serviceable/available. " +
   "Answer style: first line = the direct answer with the key number; then up to 8 short bullets (most important first); if there is more, say how many more and offer to list them. " +
@@ -430,6 +463,66 @@ export function assistantRoutes(ctx) {
       return visible.find((v) => v.mid === key) ?? null;
     };
     const ownerName = (v) => vehicleOut(v).ownerName;
+
+    // ---- loose names for disregards / criteria
+    const allFields = () => [...BLOCK_FIELDS.map((f) => f.name), ...MAINTENANCE_FIELDS];
+    const compact = (x) => String(x ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    // ["p plate", "aircon"] -> { names: ["P-PLATE", "AIRCON"], unknown: [] }
+    const resolveFields = (list) => {
+      const names = [];
+      const unknown = [];
+      for (const raw of Array.isArray(list) ? list : list ? [list] : []) {
+        const exact = allFields().find((f) => compact(f) === compact(raw));
+        const hit = exact ?? findFields(String(raw)).map((f) => f.name)[0];
+        if (hit) names.push(hit);
+        else if (String(raw).trim()) unknown.push(String(raw).trim());
+      }
+      return { names: [...new Set(names)], unknown };
+    };
+    // every vehicle type in this node (plus types that only have disregard rules)
+    const nodeTypes = () =>
+      [...new Set([...D.vehicles.map((v) => v.type), ...Object.keys(D.disregards ?? {})].filter(Boolean))].sort();
+    const TYPE_ALIASES = [
+      [/\b(luvs?|agilis)\b/i, "AGILIS"],
+      [/\b(g\s*wagons?|g300s?|merc(edes)?|mb)\b/i, "MB"],
+      [/\b(\d{1,2})\s*-?\s*(tons?|tonnes?|tonners?|t)\b/i, (m) => `${m[1]}TON`],
+      [/\bvamtacs?\b/i, "VAMTAC"],
+      [/\b(ambulances?|amb)\b/i, "AMB"],
+    ];
+    // "mb" -> both MB G300 types, "6 ton" -> every 6 TON type, "all" -> every type
+    const resolveTypes = (query) => {
+      const q = String(query ?? "").trim();
+      const types = nodeTypes();
+      if (!q || /^(all|every|everything|whole fleet|all types|all vehicles|fleet)$/i.test(q)) return /^\s*$/.test(q) ? [] : types;
+      const exact = types.filter((t) => compact(t) === compact(q));
+      if (exact.length) return exact;
+      let cleaned = q.replace(/\b(all|every|the|whole|fleet|of|vehicles?|types?|for)\b/gi, " ");
+      const parts = [];
+      for (const [re, part] of TYPE_ALIASES) {
+        const m = re.exec(cleaned);
+        if (m) {
+          parts.push(typeof part === "function" ? part(m) : part);
+          cleaned = cleaned.replace(m[0], " ");
+        }
+      }
+      // remaining words/numbers: "g300 tower" -> G, 300, TOWER
+      parts.push(...(cleaned.toUpperCase().match(/[A-Z]+|\d+/g) ?? []));
+      if (!parts.length) return [];
+      // a part must start where a word of the type starts ("MB" is not inside "AMB")
+      const hits = (t, part) => {
+        const c = compact(t);
+        const starts = new Set();
+        let at = 0;
+        for (const w of t.toUpperCase().match(/[A-Z]+|\d+/g) ?? []) {
+          starts.add(at);
+          at += w.length;
+        }
+        for (let i = c.indexOf(part); i >= 0; i = c.indexOf(part, i + 1)) if (starts.has(i)) return true;
+        return false;
+      };
+      return types.filter((t) => parts.every((p) => hits(t, p)));
+    };
+
     const brief = (v) => {
       const d = statusOf(v);
       return {
@@ -731,7 +824,105 @@ export function assistantRoutes(ctx) {
           maintenanceItems: MAINTENANCE_FIELDS,
           notCriteria: D.criteria.filter((c) => c.category === "IGNORE").map((c) => c.name),
           disregardsByType: rules,
+          vehicleTypes: nodeTypes(),
         };
+      },
+
+      propose_disregard(input) {
+        const wanted = { ignore: resolveFields(input.ignore), count: resolveFields(input.count) };
+        const unknown = [...wanted.ignore.unknown, ...wanted.count.unknown];
+        if (unknown.length) return { error: `Not a field or item: ${unknown.join(", ")}. Fields: ${allFields().join(", ")}` };
+        if (!wanted.ignore.names.length && !wanted.count.names.length) return { error: "Say which items to ignore or count again." };
+        const types = resolveTypes(input.type);
+        if (!types.length) {
+          return { error: `No vehicle type matches "${input.type}". Types in this node: ${nodeTypes().join(", ")}. Ask the user which one.` };
+        }
+        const made = [];
+        for (const type of types) {
+          if (actions.length >= MAX_ACTIONS) break;
+          const current = disregardsFor(D.disregards, type);
+          const next = [...new Set([...current, ...wanted.ignore.names])].filter((f) => !wanted.count.names.includes(f));
+          const same = next.length === current.length && next.every((f) => current.includes(f));
+          if (same) continue;
+          const rules = { ...D.disregards };
+          for (const k of Object.keys(rules)) if (normalizeTitle(k) === normalizeTitle(type)) delete rules[k];
+          rules[type] = next;
+          const ofType = D.vehicles.filter((v) => normalizeTitle(v.type) === normalizeTitle(type));
+          const moves = {}; // "UNAVAILABLE → DEPLOYED": 3
+          for (const v of ofType) {
+            const ev = todayEvents.get(v.id) ?? [];
+            const before = deployability(v, D.disregards, ev).status;
+            const after = deployability(v, rules, ev).status;
+            if (before !== after) {
+              const k = `${statusLabel(before)} → ${statusLabel(after)}`;
+              moves[k] = (moves[k] ?? 0) + 1;
+            }
+          }
+          const added = next.filter((f) => !current.includes(f));
+          const removed = current.filter((f) => !next.includes(f));
+          const action = {
+            id: `a${actions.length + 1}`,
+            kind: "disregard",
+            title: `Disregards for every ${type}`,
+            changes: [
+              ...(added.length ? [{ field: "Stop counting", from: "", to: added.join(", ") }] : []),
+              ...(removed.length ? [{ field: "Count again", from: "", to: removed.join(", ") }] : []),
+              { field: "Ignored list", from: current.join(", ") || "none", to: next.join(", ") || "none" },
+              {
+                field: "Vehicles",
+                from: "",
+                to: `${ofType.length} ${type}` + (Object.keys(moves).length ? ` (${Object.entries(moves).map(([k, n]) => `${n} ${k}`).join(", ")})` : " (no status changes)"),
+              },
+            ],
+            request: { method: "PUT", path: "/disregards", body: { type, ignored: next } },
+          };
+          actions.push(action);
+          made.push({ type, vehicles: ofType.length, statusChanges: moves });
+        }
+        if (!made.length) return { error: `Nothing would change - ${types.join(", ")} already ${wanted.ignore.names.length ? "ignore" : "count"} those items.` };
+        return { prepared: true, cards: made, note: "One card per vehicle type. Waiting for the user to press Confirm - NOT saved yet." };
+      },
+
+      propose_criteria(input) {
+        if (user.role !== "admin") {
+          return { error: "Only an Admin can change criteria. A Fleet Commander can stop an item counting for a vehicle type instead, e.g. \"ignore AIRCON for all 6 TON GS\"." };
+        }
+        if (actions.length >= MAX_ACTIONS) return { error: `At most ${MAX_ACTIONS} changes in one go.` };
+        const LABEL = { MAINTENANCE: "Maintenance (Y/N)", BLOCKED: "Blocked field", IGNORE: "Not a criteria (never counted)" };
+        const find = (name) => {
+          const key = String(name ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+          return D.criteria.find((c) => c.name.toUpperCase().replace(/[^A-Z0-9]/g, "") === key) ??
+            D.criteria.find((c) => c.name === resolveFields([name]).names[0]);
+        };
+        const set = [];
+        const changes = [];
+        for (const item of Array.isArray(input.set) ? input.set : []) {
+          const category = String(item?.category ?? "").toUpperCase();
+          if (!LABEL[category]) return { error: `Category must be MAINTENANCE, BLOCKED or IGNORE (got ${item?.category}).` };
+          const existing = find(item?.name);
+          const name = existing?.name ?? String(item?.name ?? "").replace(/\s+/g, " ").trim().toUpperCase();
+          if (!name) return { error: "A criteria needs a name." };
+          if (existing?.category === category) continue;
+          set.push({ name, category });
+          changes.push({ field: name, from: existing ? LABEL[existing.category] : "(new)", to: LABEL[category] });
+        }
+        const remove = [];
+        for (const raw of Array.isArray(input.remove) ? input.remove : []) {
+          const existing = find(raw);
+          if (!existing) return { error: `No criteria called ${raw}.` };
+          remove.push(existing.name);
+          changes.push({ field: existing.name, from: LABEL[existing.category], to: "(removed)" });
+        }
+        if (!changes.length) return { error: "Nothing would change - the criteria already look like that." };
+        const action = {
+          id: `a${actions.length + 1}`,
+          kind: "criteria",
+          title: "Criteria for the whole fleet",
+          changes,
+          request: { method: "PUT", path: "/criteria", body: { set, remove } },
+        };
+        actions.push(action);
+        return { prepared: true, card: action.title, changes, note: "Applies to every vehicle in this node. Waiting for the user to press Confirm - NOT saved yet." };
       },
 
       propose_vehicle_change(input) {
@@ -836,7 +1027,8 @@ export function assistantRoutes(ctx) {
           "labels exactly as in the guide). Use the tools for any question about actual vehicles, counts or bookings - never guess data. " +
           "When the user asks to add, change or book something, look the vehicle(s) up, then call the propose_* tools; the app then " +
           "shows each change as a card with Confirm / Cancel. Never say a change is saved: say it is ready to confirm. " +
-          "You cannot delete vehicles, change accounts, passwords, disregards or criteria - explain which page does that instead. " +
+          "You cannot delete vehicles, change accounts or passwords - explain which page does that instead. " +
+          "Disregards (per vehicle type, every vehicle of that type): propose_disregard. Criteria (Admin only, whole fleet): propose_criteria. " +
           "If a request is ambiguous (which vehicle? which value?), ask one short question. Keep data answers compact (lists, counts).\n\n" +
           HELP_GUIDE,
         cache_control: { type: "ephemeral" },

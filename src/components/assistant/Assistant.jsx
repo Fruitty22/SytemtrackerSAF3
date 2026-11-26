@@ -36,6 +36,8 @@ const ALLOWED = [
   { method: "PATCH", re: /^\/vehicles\/[\w-]+$/ },
   { method: "POST", re: /^\/vehicles$/ },
   { method: "POST", re: /^\/events$/ },
+  { method: "PUT", re: /^\/disregards$/ },
+  { method: "PUT", re: /^\/criteria$/ },
 ];
 
 const SUGGESTIONS = {
