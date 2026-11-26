@@ -18,6 +18,7 @@ import {
   Tooltip,
   Typography,
   useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import CloseIcon from "@mui/icons-material/Close";
@@ -26,6 +27,7 @@ import DeleteSweepOutlinedIcon from "@mui/icons-material/DeleteSweepOutlined";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import { api } from "../../api/client";
+import { glassSurface } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
 import { useVehicles } from "../../data/VehiclesContext";
 import { navItems } from "../../navigation";
@@ -153,6 +155,7 @@ const ActionCard = ({ action, onConfirm, onCancel }) => {
 };
 
 const Assistant = () => {
+  const theme = useTheme();
   const { user, node } = useAuth();
   const { refresh } = useVehicles();
   const { pathname } = useLocation();
@@ -280,6 +283,8 @@ const Assistant = () => {
         flexDirection: "column",
         borderRadius: phone ? 0 : 2,
         overflow: "hidden",
+        // glass look: the chat is a frosted pop-up too
+        ...(theme.argus?.glass ? { ...glassSurface(theme, "popup"), borderRadius: phone ? 0 : "20px" } : {}),
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, py: 1.25, bgcolor: "secondary.main", color: "secondary.contrastText" }}>

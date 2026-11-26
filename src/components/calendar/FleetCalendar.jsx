@@ -20,7 +20,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import { useVehicles } from "../../data/VehiclesContext";
 import { MidChips } from "../TaskingViews";
-import { tokens, BRAND } from "../../theme";
+import { tokens, BRAND, PANEL } from "../../theme";
 import { DEPLOYED_FIELDS, SCHEDULE_KINDS } from "../../../shared/config.js";
 import { deployability } from "../../../shared/deployability.js";
 import { addDays, datesInText, daysBetween, eventsByVehicleOn, isoDate, kindOf, onDate } from "../../../shared/schedule.js";
@@ -772,7 +772,7 @@ const FleetCalendar = ({ vehicles, onEditVehicle }) => {
   };
 
   return (
-    <Box sx={{ backgroundColor: colors.primary[400], borderRadius: "4px", p: { xs: 1, sm: 2 } }}>
+    <Box sx={{ ...PANEL, p: { xs: 1, sm: 2 } }}>
       {/* TOOLBAR */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1 }}>
         <Button size="small" variant="outlined" color="inherit" onClick={() => setCursor(today)}>

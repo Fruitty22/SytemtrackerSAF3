@@ -13,7 +13,7 @@ import {
   useTheme,
 } from "@mui/material";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
-import { tokens, BRAND } from "../../theme";
+import { tokens, BRAND, glassSurface } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
 import ArgusBrand from "../../components/ArgusBrand";
 import { canOpen, navSections } from "../../navigation";
@@ -127,6 +127,10 @@ const Sidebar = () => {
         overflowX: "hidden",
         overflowY: "auto",
         backgroundColor: colors.primary[400],
+        // glass look: frosted, with a light edge on the right only
+        ...(theme.argus?.glass
+          ? { ...glassSurface(theme, "panel"), borderRadius: 0, border: "none", borderRight: glassSurface(theme, "panel").border, boxShadow: "none" }
+          : {}),
         transition: theme.transitions.create("width", {
           duration: theme.transitions.duration.shorter,
         }),

@@ -17,7 +17,7 @@ import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined
 import Header from "./Header";
 import { ShowMoreButtons, useShowMore } from "./ShowMore";
 import useVehicleDialogs from "./useVehicleDialogs";
-import { tokens } from "../theme";
+import { tokens, PANEL } from "../theme";
 import { useAuth } from "../auth/AuthContext";
 import { useVehicles } from "../data/VehiclesContext";
 import { byMid } from "../utils/vehicle";
@@ -113,7 +113,7 @@ const VehicleWorkspace = ({ title, subtitle, filters, renderBadge, renderDetail,
         }}
       >
         {/* LEFT: pick a vehicle */}
-        <Box sx={{ backgroundColor: colors.primary[400], borderRadius: "4px", p: 2 }}>
+        <Box sx={{ ...PANEL, p: 2 }}>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, mb: 1.5 }}>
             <TextField select size="small" label="Vehicle type" value={type} onChange={(e) => setType(e.target.value)}>
               <MenuItem value="ALL">All types ({vehicles.length})</MenuItem>
@@ -190,7 +190,7 @@ const VehicleWorkspace = ({ title, subtitle, filters, renderBadge, renderDetail,
         </Box>
 
         {/* RIGHT: edit the selected vehicle */}
-        <Box sx={{ backgroundColor: colors.primary[400], borderRadius: "4px", p: { xs: 2, sm: 3 }, minHeight: 300 }}>
+        <Box sx={{ ...PANEL, p: { xs: 2, sm: 3 }, minHeight: 300 }}>
           {selected ? (
             <>
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 2, flexWrap: "wrap", mb: 2 }}>

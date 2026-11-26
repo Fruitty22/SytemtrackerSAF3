@@ -18,7 +18,7 @@ import {
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import Header from "../../components/Header";
 import ConfirmDialog from "../../components/ConfirmDialog";
-import { tokens } from "../../theme";
+import { tokens, PANEL } from "../../theme";
 import { useVehicles } from "../../data/VehiclesContext";
 import { formatDateTime } from "../../utils/vehicle";
 import { CATEGORIES } from "../../../shared/criteria.js";
@@ -75,7 +75,7 @@ const Criteria = () => {
           alignItems: "start",
         }}
       >
-        <Box sx={{ backgroundColor: colors.primary[400], borderRadius: "4px", p: { xs: 1, sm: 2 }, overflowX: "auto" }}>
+        <Box sx={{ ...PANEL, p: { xs: 1, sm: 2 }, overflowX: "auto" }}>
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -155,7 +155,7 @@ const Criteria = () => {
           </Table>
         </Box>
 
-        <Box sx={{ backgroundColor: colors.primary[400], borderRadius: "4px", p: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box sx={{ ...PANEL, p: 2, display: "flex", flexDirection: "column", gap: 2 }}>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
             Add a criteria
           </Typography>

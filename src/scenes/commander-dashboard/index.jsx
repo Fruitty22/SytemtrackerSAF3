@@ -18,7 +18,7 @@ import StatBox from "../../components/StatBox";
 import { LevelChip } from "../../components/Chips";
 import { TaskingGroups } from "../../components/TaskingViews";
 import { ShowMoreButtons, useShowMore } from "../../components/ShowMore";
-import { tokens } from "../../theme";
+import { tokens, PANEL } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
 import { useVehicles } from "../../data/VehiclesContext";
 import { byMid, levelInfo, managedBy } from "../../utils/vehicle";
@@ -51,7 +51,7 @@ const Panel = ({ title, count, children }) => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
   return (
-    <Box sx={{ backgroundColor: colors.primary[400], borderRadius: "4px", p: 2, minWidth: 0 }}>
+    <Box sx={{ ...PANEL, p: 2, minWidth: 0 }}>
       <Typography variant="h5" sx={{ fontWeight: 700, mb: 1.5 }}>
         {title}
         {count !== undefined && (

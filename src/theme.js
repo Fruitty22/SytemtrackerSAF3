@@ -1,4 +1,5 @@
 import { createContext, useState, useMemo } from "react";
+import { usePrefs } from "./prefs/PrefsContext";
 import { createTheme } from "@mui/material/styles";
 
 // ARGUS theme: "Abyss Teal" - near-black sea-teal background, deep teal accents.
@@ -138,10 +139,78 @@ export const tokens = (mode) => ({
       }),
 });
 
-// mui theme settings
-export const themeSettings = (mode) => {
-  const colors = tokens(mode);
+// ---------------------------------------------------------------- glass look
+// "Glass effect" in the account menu: see-through frosted panels and pop-ups
+// over a soft teal glow, with a thin light edge and a highlight on top (like
+// iOS). Pop-ups are frosted more than page panels so text behind them never
+// shows through. Phones get a lighter blur.
+const GLASS = {
+  dark: {
+    glow: `radial-gradient(900px 620px at 8% 6%, rgba(47,156,144,.42), transparent 60%),
+      radial-gradient(760px 640px at 92% 12%, rgba(36,112,122,.55), transparent 62%),
+      radial-gradient(820px 620px at 55% 100%, rgba(79,179,187,.26), transparent 60%),
+      ${BRAND.bg}`,
+    panel: "rgba(12, 34, 37, 0.40)",
+    popup: "rgba(7, 24, 27, 0.80)",
+    well: "rgba(1, 8, 9, 0.50)",
+    sheen: "linear-gradient(140deg, rgba(255,255,255,.08), rgba(255,255,255,.015) 55%, rgba(255,255,255,.04))",
+    edge: "rgba(255, 255, 255, 0.11)",
+    shadow: "inset 0 1px 0 rgba(255,255,255,.16), 0 10px 28px rgba(0,0,0,.35)",
+    popupShadow: "inset 0 1px 0 rgba(255,255,255,.20), 0 24px 60px rgba(0,0,0,.55)",
+    dim: "rgba(0, 0, 0, 0.35)",
+  },
+  light: {
+    glow: `radial-gradient(900px 620px at 8% 6%, rgba(47,156,144,.22), transparent 60%),
+      radial-gradient(760px 640px at 92% 12%, rgba(79,179,187,.22), transparent 62%),
+      radial-gradient(820px 620px at 55% 100%, rgba(26,74,82,.12), transparent 60%),
+      #eef4f3`,
+    panel: "rgba(255, 255, 255, 0.55)",
+    popup: "rgba(255, 255, 255, 0.82)",
+    well: "rgba(255, 255, 255, 0.55)",
+    sheen: "linear-gradient(140deg, rgba(255,255,255,.55), rgba(255,255,255,.1) 55%, rgba(255,255,255,.3))",
+    edge: "rgba(255, 255, 255, 0.85)",
+    shadow: "inset 0 1px 0 rgba(255,255,255,.9), 0 8px 24px rgba(20,60,60,.12)",
+    popupShadow: "inset 0 1px 0 rgba(255,255,255,.95), 0 24px 60px rgba(20,60,60,.22)",
+    dim: "rgba(10, 30, 30, 0.18)",
+  },
+};
+const glassOf = (t) => (t.argus?.glass ? GLASS[t.palette.mode] : null);
+const blur = (px) => ({ backdropFilter: `blur(${px}px) saturate(165%)`, WebkitBackdropFilter: `blur(${px}px) saturate(165%)` });
+
+// A frosted surface as sx (empty when the glass look is off).
+// kind: "panel" (page boxes) | "popup" (pop-ups, menus, the chat)
+export const glassSurface = (theme, kind = "panel") => {
+  const g = glassOf(theme);
+  if (!g) return {};
+  const popup = kind === "popup";
   return {
+    backgroundColor: popup ? g.popup : g.panel,
+    backgroundImage: g.sheen,
+    ...blur(popup ? 30 : 16),
+    border: `1px solid ${g.edge}`,
+    boxShadow: popup ? g.popupShadow : g.shadow,
+    [theme.breakpoints.down("sm")]: blur(popup ? 18 : 10),
+  };
+};
+
+// Use instead of backgroundColor: colors.primary[400] for a page box ("panel"):
+// the normal panel colour, or frosted glass when the glass look is on.
+export const PANEL = {
+  backgroundColor: (t) => (glassOf(t) ? glassOf(t).panel : tokens(t.palette.mode).primary[400]),
+  backgroundImage: (t) => glassOf(t)?.sheen,
+  backdropFilter: (t) => (glassOf(t) ? "blur(16px) saturate(165%)" : undefined),
+  WebkitBackdropFilter: (t) => (glassOf(t) ? "blur(16px) saturate(165%)" : undefined),
+  border: (t) => (glassOf(t) ? `1px solid ${glassOf(t).edge}` : undefined),
+  boxShadow: (t) => glassOf(t)?.shadow,
+  borderRadius: (t) => (glassOf(t) ? "14px" : "4px"),
+};
+
+// mui theme settings
+export const themeSettings = (mode, { glass = false } = {}) => {
+  const colors = tokens(mode);
+  const g = glass ? GLASS[mode] : null;
+  return {
+    argus: { glass },
     palette: {
       mode: mode,
       ...(mode === "dark"
@@ -159,13 +228,13 @@ export const themeSettings = (mode) => {
               light: colors.grey[100],
             },
             background: {
-              default: colors.primary[500],
+              default: g ? g.well : colors.primary[500],
             },
             // MUI X Data Grid (v8+) reads its colors from palette.DataGrid
             DataGrid: {
-              bg: colors.primary[400],
-              headerBg: colors.blueAccent[700],
-              pinnedBg: colors.primary[400],
+              bg: g ? "transparent" : colors.primary[400],
+              headerBg: g ? "rgba(26, 74, 82, 0.62)" : colors.blueAccent[700],
+              pinnedBg: g ? "rgba(7, 24, 27, 0.85)" : colors.primary[400],
             },
           }
         : {
@@ -182,12 +251,12 @@ export const themeSettings = (mode) => {
               light: colors.grey[100],
             },
             background: {
-              default: "#fcfcfc",
+              default: g ? g.well : "#fcfcfc",
             },
             DataGrid: {
-              bg: colors.primary[400],
-              headerBg: colors.blueAccent[700],
-              pinnedBg: colors.primary[400],
+              bg: g ? "transparent" : colors.primary[400],
+              headerBg: g ? "rgba(121, 204, 210, 0.55)" : colors.blueAccent[700],
+              pinnedBg: g ? "rgba(255, 255, 255, 0.85)" : colors.primary[400],
             },
           }),
     },
@@ -199,6 +268,65 @@ export const themeSettings = (mode) => {
       MuiRadio: { defaultProps: { color: "secondary" } },
       MuiSwitch: { defaultProps: { color: "secondary" } },
       MuiTextField: { defaultProps: { color: "secondary" } },
+      ...(g
+        ? {
+            MuiCssBaseline: {
+              styleOverrides: {
+                body: { background: g.glow, backgroundAttachment: "fixed" },
+              },
+            },
+            // pop-ups: heavily frosted, rounder, the page behind slightly blurred
+            MuiDialog: {
+              styleOverrides: {
+                root: { "& .MuiBackdrop-root": { backgroundColor: g.dim, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" } },
+                paper: {
+                  backgroundColor: g.popup,
+                  backgroundImage: g.sheen,
+                  backdropFilter: "blur(30px) saturate(165%)",
+                  WebkitBackdropFilter: "blur(30px) saturate(165%)",
+                  border: `1px solid ${g.edge}`,
+                  borderRadius: 20,
+                  boxShadow: g.popupShadow,
+                  "@media (max-width:600px)": { backdropFilter: "blur(18px) saturate(165%)", WebkitBackdropFilter: "blur(18px) saturate(165%)" },
+                },
+              },
+            },
+            MuiPopover: {
+              styleOverrides: {
+                paper: {
+                  backgroundColor: g.popup,
+                  backgroundImage: g.sheen,
+                  backdropFilter: "blur(24px) saturate(165%)",
+                  WebkitBackdropFilter: "blur(24px) saturate(165%)",
+                  border: `1px solid ${g.edge}`,
+                  borderRadius: 14,
+                  boxShadow: g.popupShadow,
+                },
+              },
+            },
+            MuiDataGrid: {
+              styleOverrides: {
+                root: {
+                  backgroundColor: g.panel,
+                  backgroundImage: g.sheen,
+                  backdropFilter: "blur(16px) saturate(165%)",
+                  WebkitBackdropFilter: "blur(16px) saturate(165%)",
+                  border: `1px solid ${g.edge} !important`,
+                  borderRadius: 14,
+                  boxShadow: g.shadow,
+                  overflow: "hidden",
+                },
+              },
+            },
+            MuiButton: {
+              styleOverrides: {
+                contained: { borderRadius: 12, boxShadow: "inset 0 1px 0 rgba(255,255,255,.35), 0 6px 16px rgba(47,156,144,.28)" },
+                outlined: { borderRadius: 12 },
+              },
+            },
+            MuiOutlinedInput: { styleOverrides: { root: { borderRadius: 12 } } },
+          }
+        : {}),
     },
     typography: {
       fontFamily: ["Source Sans Pro", "sans-serif"].join(","),
@@ -247,6 +375,7 @@ export const useMode = () => {
     []
   );
 
-  const theme = useMemo(() => createTheme(themeSettings(mode)), [mode]);
+  const { glass } = usePrefs();
+  const theme = useMemo(() => createTheme(themeSettings(mode, { glass })), [mode, glass]);
   return [theme, colorMode];
 };

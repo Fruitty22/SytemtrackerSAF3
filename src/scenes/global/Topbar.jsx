@@ -12,6 +12,8 @@ import {
   MenuItem,
   Typography,
   useTheme,
+  Divider,
+  Switch,
 } from "@mui/material";
 import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
 import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
@@ -19,6 +21,8 @@ import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined
 import KeyOutlinedIcon from "@mui/icons-material/KeyOutlined";
 import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlined";
 import TableChartOutlinedIcon from "@mui/icons-material/TableChartOutlined";
+import BlurOnOutlinedIcon from "@mui/icons-material/BlurOnOutlined";
+import LabelOutlinedIcon from "@mui/icons-material/LabelOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
 import CloseOutlinedIcon from "@mui/icons-material/CloseOutlined";
@@ -26,10 +30,11 @@ import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CheckIcon from "@mui/icons-material/Check";
 import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
+import { usePrefs } from "../../prefs/PrefsContext";
 import { api } from "../../api/client";
 import { NODES } from "../../../shared/nodes.js";
 import { NavList } from "./Sidebar";
-import { ColorModeContext, tokens } from "../../theme";
+import { ColorModeContext, tokens, PANEL } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
 import ChangePasswordDialog from "../../components/ChangePasswordDialog";
 import MyAccountDialog from "../../components/MyAccountDialog";
@@ -51,6 +56,7 @@ function formatGmt8Date(date = new Date()) {
 
 const Topbar = () => {
   const theme = useTheme();
+  const { glass, colorLabels, toggleGlass, toggleColorLabels } = usePrefs();
   const colors = tokens(theme.palette.mode);
   const colorMode = useContext(ColorModeContext);
   const { user, logout, node, switchNode, leaveNode } = useAuth();
@@ -92,6 +98,8 @@ const Topbar = () => {
         top: 0,
         zIndex: theme.zIndex.appBar,
         backgroundColor: { xs: "background.default", md: "transparent" },
+        // glass look: the bar stays readable over the page scrolling under it
+        ...(theme.argus?.glass ? { backdropFilter: { xs: "blur(18px) saturate(165%)", md: "none" }, WebkitBackdropFilter: { xs: "blur(18px) saturate(165%)", md: "none" } } : {}),
         boxShadow: { xs: navOpen ? 0 : `0 1px 0 ${theme.palette.divider}`, md: "none" },
       }}
     >
@@ -119,7 +127,7 @@ const Topbar = () => {
           px: 1.5,
           py: 0.5,
           borderRadius: "4px",
-          backgroundColor: colors.primary[400],
+          ...PANEL,
           border: `1px solid ${colors.primary[300] ?? colors.grey[700]}`,
           color: colors.grey[100],
           whiteSpace: "nowrap",
@@ -277,6 +285,23 @@ const Topbar = () => {
             Change node
           </MenuItem>
         )}
+        <Divider />
+        {/* look-and-feel switches (kept in this browser) - the menu stays open to see the change */}
+        <MenuItem onClick={toggleGlass} aria-label="Glass effect on or off">
+          <ListItemIcon>
+            <BlurOnOutlinedIcon fontSize="small" />
+          </ListItemIcon>
+          <Box sx={{ flex: 1, pr: 1 }}>Glass effect</Box>
+          <Switch size="small" checked={glass} tabIndex={-1} sx={{ pointerEvents: "none" }} />
+        </MenuItem>
+        <MenuItem onClick={toggleColorLabels} aria-label="Coloured stat labels on or off">
+          <ListItemIcon>
+            <LabelOutlinedIcon fontSize="small" />
+          </ListItemIcon>
+          <Box sx={{ flex: 1, pr: 1 }}>Coloured stat labels</Box>
+          <Switch size="small" checked={colorLabels} tabIndex={-1} sx={{ pointerEvents: "none" }} />
+        </MenuItem>
+        <Divider />
         <MenuItem
           onClick={() => {
             setMenuAnchor(null);

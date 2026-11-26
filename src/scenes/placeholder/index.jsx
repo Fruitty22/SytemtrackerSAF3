@@ -1,6 +1,6 @@
 import { Box, Typography, useTheme } from "@mui/material";
 import Header from "../../components/Header";
-import { tokens } from "../../theme";
+import { tokens, PANEL } from "../../theme";
 
 const Placeholder = ({ title }) => {
   const theme = useTheme();
@@ -12,7 +12,7 @@ const Placeholder = ({ title }) => {
         sx={{
           mt: "40px",
           p: "40px",
-          backgroundColor: colors.primary[400],
+          ...PANEL,
           borderRadius: "4px",
         }}
       >

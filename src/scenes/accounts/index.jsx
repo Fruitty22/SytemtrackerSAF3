@@ -29,7 +29,7 @@ import RestoreOutlinedIcon from "@mui/icons-material/RestoreOutlined";
 import DeleteForeverOutlinedIcon from "@mui/icons-material/DeleteForeverOutlined";
 import Header from "../../components/Header";
 import ConfirmDialog from "../../components/ConfirmDialog";
-import { tokens } from "../../theme";
+import { tokens, PANEL } from "../../theme";
 import { api } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
 import { useVehicles } from "../../data/VehiclesContext";
@@ -250,7 +250,7 @@ const DeletedAccounts = ({ reloadKey, onRestored }) => {
           {error}
         </Alert>
       )}
-      <Box sx={{ backgroundColor: colors.primary[400], borderRadius: "4px", overflowX: "auto" }}>
+      <Box sx={{ ...PANEL, overflowX: "auto" }}>
         {items.length === 0 ? (
           <Typography sx={{ p: 2, color: colors.grey[300] }}>No deleted accounts.</Typography>
         ) : (

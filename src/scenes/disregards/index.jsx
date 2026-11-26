@@ -13,7 +13,7 @@ import {
   useTheme,
 } from "@mui/material";
 import Header from "../../components/Header";
-import { tokens } from "../../theme";
+import { tokens, PANEL } from "../../theme";
 import { useVehicles } from "../../data/VehiclesContext";
 import { formatDateTime } from "../../utils/vehicle";
 import { BLOCK_FIELDS, DEPLOY_LABELS, MAINTENANCE_FIELDS } from "../../../shared/config.js";
@@ -102,7 +102,7 @@ const Disregards = () => {
         }}
       >
         {/* THE FORM */}
-        <Box sx={{ backgroundColor: colors.primary[400], borderRadius: "4px", p: { xs: 2, sm: 3 } }}>
+        <Box sx={{ ...PANEL, p: { xs: 2, sm: 3 } }}>
           <TextField
             select
             fullWidth
@@ -172,7 +172,7 @@ const Disregards = () => {
         </Box>
 
         {/* EVERY TYPE WITH DISREGARDS */}
-        <Box sx={{ backgroundColor: colors.primary[400], borderRadius: "4px", p: 2 }}>
+        <Box sx={{ ...PANEL, p: 2 }}>
           <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
             All disregards
           </Typography>
