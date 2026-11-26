@@ -329,6 +329,35 @@ const Accounts = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Safety net: if the shared list hasn't arrived after a few seconds (or the
+  // load ended without it), this page asks the server for the accounts itself,
+  // so it never sits on its loading bars.
+  const [ownList, setOwnList] = useState(null);
+  const [ownError, setOwnError] = useState("");
+  useEffect(() => {
+    if (users.length > 0) return undefined;
+    let alive = true;
+    const timer = setTimeout(
+      async () => {
+        try {
+          const data = await api("/users");
+          if (alive) {
+            setOwnList(data.users ?? []);
+            setOwnError("");
+          }
+        } catch (err) {
+          if (alive) setOwnError(err.message);
+        }
+      },
+      loading ? 4000 : 300
+    );
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [users.length, loading]);
+  const shownUsers = users.length > 0 ? users : (ownList ?? []);
+
   const columns = useMemo(
     () => [
       { field: "name", headerName: "Display name", flex: 1, minWidth: 160 },
@@ -434,27 +463,35 @@ const Accounts = () => {
         vehicle and this page. People can also create their own Fleet Commander
         account from the Sign up tab on the login screen.
       </Alert>
-      {error && (
+      {(error || ownError) && shownUsers.length === 0 && (
         <Alert
           severity="error"
           sx={{ mb: 2 }}
           action={
-            <Button color="inherit" size="small" onClick={() => refresh()}>
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => {
+                setOwnError("");
+                setOwnList(null);
+                refresh();
+              }}
+            >
               Try again
             </Button>
           }
         >
-          {error}
+          {ownError || error}
         </Alert>
       )}
 
       <Box sx={{ height: "55vh", minHeight: 320, ...gridSx(colors) }}>
         <DataGrid
-          rows={users}
+          rows={shownUsers}
           columns={columns}
           // loading bars only before the first list arrives; a reload in the
           // background keeps the accounts on screen
-          loading={loading && users.length === 0}
+          loading={shownUsers.length === 0 && !ownError && (loading || ownList === null)}
           density="compact"
           showToolbar
           disableRowSelectionOnClick
@@ -495,7 +532,7 @@ const Accounts = () => {
             <MenuItem value={UNASSIGNED}>
               <em>Unassigned</em>
             </MenuItem>
-            {users
+            {shownUsers
               .filter((u) => u.id !== deleting.id)
               .map((u) => (
                 <MenuItem key={u.id} value={u.id}>

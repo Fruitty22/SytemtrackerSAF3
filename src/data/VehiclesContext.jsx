@@ -85,7 +85,8 @@ export function VehiclesProvider({ children }) {
     } finally {
       clearTimeout(slowTimer);
       if (mine === latest.current) {
-        if (!quiet) setLoading(false);
+        // always: a background check that replaced a normal load ends its loading bars too
+        setLoading(false);
         setSlow(false);
         inFlight.current = null;
       }
