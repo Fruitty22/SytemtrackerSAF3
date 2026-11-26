@@ -4,6 +4,7 @@
 import { Box, Typography, keyframes } from "@mui/material";
 import ArgusMark from "./ArgusMark";
 import { nodeByKey } from "../../shared/nodes.js";
+import { BRAND } from "../theme";
 
 const fadeIn = keyframes`from { opacity: 0; } to { opacity: 1; }`;
 const fadeOut = keyframes`from { opacity: 1; } to { opacity: 0; }`;
@@ -34,7 +35,7 @@ const NodeTransition = ({ transition }) => {
         display: "grid",
         placeItems: "center",
         background:
-          "radial-gradient(ellipse at 50% 40%, #2a3070 0%, #141b2d 55%, #0b0e1d 100%)",
+          `radial-gradient(ellipse at 50% 40%, ${BRAND.glow} 0%, ${BRAND.bg} 55%, ${BRAND.deep} 100%)`,
         animation: `${leaving ? fadeOut : fadeIn} ${leaving ? 0.48 : 0.38}s ease both`,
         "@media (prefers-reduced-motion: reduce)": { animation: "none", "& *": { animation: "none !important" } },
       }}
@@ -73,7 +74,7 @@ const NodeTransition = ({ transition }) => {
           <Box
             sx={{
               height: "100%",
-              background: "linear-gradient(90deg, #6870fa, #4cceac)",
+              background: `linear-gradient(90deg, ${BRAND.accentText}, ${BRAND.accent})`,
               transformOrigin: "left",
               animation: `${bar} .9s ease-out both`,
             }}

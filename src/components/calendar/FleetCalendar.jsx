@@ -20,7 +20,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import { useVehicles } from "../../data/VehiclesContext";
 import { MidChips } from "../TaskingViews";
-import { tokens } from "../../theme";
+import { tokens, BRAND } from "../../theme";
 import { DEPLOYED_FIELDS, SCHEDULE_KINDS } from "../../../shared/config.js";
 import { deployability } from "../../../shared/deployability.js";
 import { addDays, datesInText, daysBetween, eventsByVehicleOn, isoDate, kindOf, onDate } from "../../../shared/schedule.js";
@@ -550,8 +550,8 @@ const FleetCalendar = ({ vehicles, onEditVehicle }) => {
                       fontSize: 12,
                       fontWeight: isToday ? 700 : 500,
                       color: isToday ? "#fff" : outside ? "text.disabled" : "text.primary",
-                      backgroundColor: isToday ? "#6870fa" : "transparent",
-                      "&:hover": { backgroundColor: isToday ? "#6870fa" : "action.selected" },
+                      backgroundColor: isToday ? BRAND.accentText : "transparent",
+                      "&:hover": { backgroundColor: isToday ? BRAND.accentText : "action.selected" },
                     }}
                   >
                     {Number(date.slice(8))}

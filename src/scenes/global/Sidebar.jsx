@@ -13,7 +13,7 @@ import {
   useTheme,
 } from "@mui/material";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
-import { tokens } from "../../theme";
+import { tokens, BRAND } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
 import ArgusBrand from "../../components/ArgusBrand";
 import { canOpen, navSections } from "../../navigation";
@@ -45,7 +45,7 @@ const Item = ({ title, to, icon: Icon, collapsed, onNavigate }) => {
         py: "5px",
         pl: "20px",
         pr: collapsed ? "20px" : "35px",
-        color: active ? "#6870fa" : colors.grey[100],
+        color: active ? BRAND.accentText : colors.grey[100],
         backgroundColor: "transparent",
         "&:hover": { backgroundColor: "transparent", color: "#868dfb" },
       }}

@@ -4,7 +4,7 @@ import ArgusBrand from "../../components/ArgusBrand";
 import ArgusMark, { NODE_LOGOS } from "../../components/ArgusMark";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import GearStick, { GEARS } from "../../components/GearStick";
-import { tokens } from "../../theme";
+import { tokens, BRAND } from "../../theme";
 import { useAuth } from "../../auth/AuthContext";
 import { NODES } from "../../../shared/nodes.js";
 import { FiveTonTruck, drift, noMotion, rise, roll } from "../../components/FleetVehicle";
@@ -70,7 +70,7 @@ const NodePicker = () => {
           borderRadius: "28px",
           overflow: "hidden",
           color: "#fff",
-          background: `linear-gradient(150deg, ${d.blueAccent[700]} 0%, ${d.blueAccent[900]} 52%, #0b0d1f 100%)`,
+          background: `linear-gradient(150deg, ${d.blueAccent[700]} 0%, ${d.blueAccent[900]} 52%, ${BRAND.deep} 100%)`,
           border: "1px solid rgba(255,255,255,0.08)",
           boxShadow: "0 30px 80px rgba(0,0,0,0.55)",
           animation: `${rise} 0.5s ease-out`,

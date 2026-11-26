@@ -20,7 +20,7 @@ import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import CheckIcon from "@mui/icons-material/Check";
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import TouchAppOutlinedIcon from "@mui/icons-material/TouchAppOutlined";
-import { tokens } from "../theme";
+import { tokens, BRAND } from "../theme";
 
 // "How to use ARGUS" - the PICTURE version of the guide.
 //
@@ -90,7 +90,7 @@ const Screen = ({ children, sx }) => (
       height: { xs: 200, sm: 232 },
       borderRadius: "14px",
       overflow: "hidden",
-      backgroundColor: "#141b2d",
+      backgroundColor: BRAND.bg,
       border: `1px solid ${C.line}`,
       boxShadow: "0 14px 40px rgba(0,0,0,0.4)",
       ...sx,
@@ -240,7 +240,7 @@ const Row = ({ mid, status, reason }) => (
 // ---------------------------------------------------------------- the 8 scenes
 
 const SceneLogin = ({ nodeName }) => (
-  <Screen sx={{ background: `linear-gradient(150deg, ${d.blueAccent[700]}, #0b0d1f)` }}>
+  <Screen sx={{ background: `linear-gradient(150deg, ${d.blueAccent[700]}, ${BRAND.deep})` }}>
     <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
       <Box sx={{ width: "62%", p: 1.5, borderRadius: "12px", backgroundColor: "rgba(255,255,255,0.09)", border: `1px solid ${C.line}` }}>
         <Tag tone="accent" sx={{ mb: 1 }}>
@@ -428,7 +428,7 @@ const SceneFilters = () => (
         ["Reason", "AIRCON (N)"],
       ].map(([label, value], i) => (
         <Box key={label} sx={{ position: "relative", height: 26, pr: i === 1 ? 0 : 2.5, borderRadius: "6px", border: `1px solid ${i ? alpha(C.accent, 0.7) : C.line}`, px: 0.75, display: "flex", alignItems: "center" }}>
-          <Typography sx={{ position: "absolute", top: -7, left: 6, px: 0.4, fontSize: 8, backgroundColor: "#141b2d", color: C.dim }}>{label}</Typography>
+          <Typography sx={{ position: "absolute", top: -7, left: 6, px: 0.4, fontSize: 8, backgroundColor: BRAND.bg, color: C.dim }}>{label}</Typography>
           <Typography sx={{ fontSize: 10, fontWeight: 700, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{value}</Typography>
           {i !== 1 && <Marker n={i === 0 ? 1 : 2} top={1} right={1} />}
         </Box>
@@ -534,7 +534,7 @@ const SceneCalendar = () => {
                         borderRadius: "50%",
                         display: "grid",
                         placeItems: "center",
-                        backgroundColor: today ? "#6870fa" : "transparent",
+                        backgroundColor: today ? BRAND.accentText : "transparent",
                       }}
                     >
                       {day}
@@ -601,7 +601,7 @@ const SceneDashboard = () => (
   <Screen>
     <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0.75, mb: 1 }}>
       {[
-        ["49", "Vehicles", "#6870fa"],
+        ["49", "Vehicles", BRAND.accentText],
         ["20", "AVAILABLE", C.available],
         ["9", "DEPLOYED", C.deployed],
         ["20", "UNAVAILABLE", C.unavailable],
@@ -625,7 +625,7 @@ const SceneDashboard = () => (
           background: `conic-gradient(${C.available} 0 41%, ${C.deployed} 41% 59%, ${C.unavailable} 59% 100%)`,
         }}
       >
-        <Box sx={{ width: 52, height: 52, borderRadius: "50%", backgroundColor: "#141b2d", display: "grid", placeItems: "center" }}>
+        <Box sx={{ width: 52, height: 52, borderRadius: "50%", backgroundColor: BRAND.bg, display: "grid", placeItems: "center" }}>
           <Typography sx={{ fontWeight: 900, fontSize: 13 }}>41%</Typography>
         </Box>
       </Box>

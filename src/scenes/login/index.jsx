@@ -23,7 +23,7 @@ import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutli
 import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
 import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
-import { themeSettings, tokens } from "../../theme";
+import { themeSettings, tokens, BRAND } from "../../theme";
 import { MAIN_NODE } from "../../../shared/nodes.js";
 import { useAuth } from "../../auth/AuthContext";
 import { api } from "../../api/client";
@@ -264,7 +264,7 @@ const Login = () => {
             maxWidth: 1040,
             borderRadius: "28px",
             overflow: "hidden",
-            background: `linear-gradient(150deg, ${d.blueAccent[700]} 0%, ${d.blueAccent[900]} 52%, #0b0d1f 100%)`,
+            background: `linear-gradient(150deg, ${d.blueAccent[700]} 0%, ${d.blueAccent[900]} 52%, ${BRAND.deep} 100%)`,
             border: "1px solid rgba(255,255,255,0.08)",
             boxShadow: "0 30px 80px rgba(0,0,0,0.55)",
             animation: `${rise} 0.5s ease-out`,

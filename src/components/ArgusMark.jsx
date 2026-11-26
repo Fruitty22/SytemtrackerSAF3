@@ -4,6 +4,7 @@
 // logo, the same drawing as public/favicon.svg (the browser-tab icon).
 import { useId } from "react";
 import { Box, keyframes } from "@mui/material";
+import { BRAND } from "../theme";
 
 // open ... quick close ... open again (a double blink every few seconds)
 const blink = keyframes`
@@ -26,7 +27,7 @@ export const EYE_L = "M34 47.6 Q38.2 44.9 42.4 47.6 Q38.2 50.3 34 47.6 Z";
 export const EYE_R = "M57.6 47.6 Q61.8 44.9 66 47.6 Q61.8 50.3 57.6 47.6 Z";
 
 const WHITE = "#fff";
-const NAVY = "#141b2d";
+const NAVY = BRAND.bg;
 
 // two short bars under the helmet (Charlie's style)
 const bars = (c) =>
@@ -120,11 +121,11 @@ export function logoMarkup(nodeKey, p = "am", { glowLayer = true } = {}) {
   const isNode = !!n;
   const h = n?.helmet ?? (isNode ? { scale: 0.84, y: 44 } : { scale: 1, y: 46 });
   const helmetFill = gold ? "#1b2340" : WHITE;
-  const visorFill = gold ? "#06080f" : "#24336a";
+  const visorFill = gold ? "#06080f" : BRAND.logoVisor;
   const rim = gold || !n?.goldRim ? `stroke="#fff" stroke-opacity="${gold ? 0.3 : 0.22}"` : `stroke="url(#${p}-gold)" stroke-opacity=".9"`;
   const eyes = `<path d="${EYE_L}" fill="#7ef0cf"/><path d="${EYE_R}" fill="#7ef0cf"/>`;
   return `<defs>
-<linearGradient id="${p}-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6870fa"/><stop offset="1" stop-color="#3da58a"/></linearGradient>
+<linearGradient id="${p}-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${BRAND.logoFrom}"/><stop offset="1" stop-color="${BRAND.logoTo}"/></linearGradient>
 <linearGradient id="${p}-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8e19a"/><stop offset=".5" stop-color="#d4a73a"/><stop offset="1" stop-color="#8f661a"/></linearGradient>
 <linearGradient id="${p}-brl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3c4"/><stop offset=".35" stop-color="#ecc55c"/><stop offset=".75" stop-color="#b98a2a"/><stop offset="1" stop-color="#7a5615"/></linearGradient>
 <filter id="${p}-soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.4"/></filter>
@@ -196,9 +197,9 @@ export function badgeMarkup(nodeKey, p = "nb") {
     ? `<g class="eye-glow"><circle cx="${(x + b.eye[0] * W).toFixed(1)}" cy="${(y + b.eye[1] * H).toFixed(1)}" r="4" fill="#9ff3ff" opacity=".6" filter="url(#${p}-eg)"/></g>`
     : "";
   return `<defs>
-<linearGradient id="${p}-th" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8f95ff"/><stop offset="1" stop-color="#4cceac"/></linearGradient>
+<linearGradient id="${p}-th" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${BRAND.accentText}"/><stop offset="1" stop-color="${BRAND.accent}"/></linearGradient>
 <linearGradient id="${p}-au" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbe7a6"/><stop offset=".5" stop-color="#d9ac40"/><stop offset="1" stop-color="#8f661a"/></linearGradient>
-<radialGradient id="${p}-in" cx=".5" cy=".45" r=".62"><stop offset="0" stop-color="${b.accent}" stop-opacity=".38"/><stop offset=".38" stop-color="#16204a"/><stop offset="1" stop-color="#060914"/></radialGradient>
+<radialGradient id="${p}-in" cx=".5" cy=".45" r=".62"><stop offset="0" stop-color="${b.accent}" stop-opacity=".38"/><stop offset=".38" stop-color="${BRAND.glow}"/><stop offset="1" stop-color="${BRAND.deep}"/></radialGradient>
 <linearGradient id="${p}-gl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".1"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/></linearGradient>
 <pattern id="${p}-gr" width="7" height="12.12" patternUnits="userSpaceOnUse"><path d="M3.5 0 L7 2 V6 L3.5 8 L0 6 V2 Z M3.5 8 V12.12" fill="none" stroke="#fff" stroke-opacity=".06" stroke-width=".4"/></pattern>
 <clipPath id="${p}-pop"><path d="${HEX}"/><rect x="-10" y="-20" width="120" height="52"/></clipPath>
