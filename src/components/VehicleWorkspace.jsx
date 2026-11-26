@@ -218,7 +218,7 @@ const VehicleWorkspace = ({ title, subtitle, filters, renderBadge, renderDetail,
           ) : (
             <Box sx={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Typography sx={{ color: colors.grey[300] }}>
-                Select a vehicle from the list on the left.
+                Select a vehicle from the list to see and change it.
               </Typography>
             </Box>
           )}

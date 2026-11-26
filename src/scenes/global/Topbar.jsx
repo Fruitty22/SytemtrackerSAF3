@@ -320,6 +320,47 @@ const Topbar = () => {
       {sheetOpen && <ClaimSheetDialog onClose={() => setSheetOpen(false)} />}
     </Box>
 
+    {/* PHONE ONLY: second row with what the laptop bar shows - today's date and who is logged in */}
+    <Box
+      sx={{
+        display: { xs: "flex", sm: "none" },
+        alignItems: "center",
+        gap: 1,
+        px: 2,
+        pb: 1,
+        mt: -0.5,
+        minWidth: 0,
+      }}
+    >
+      <Box
+        sx={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 0.75,
+          px: 1,
+          py: 0.25,
+          ...PANEL,
+          border: `1px solid ${colors.primary[300] ?? colors.grey[700]}`,
+          color: colors.grey[100],
+          whiteSpace: "nowrap",
+        }}
+      >
+        <CalendarTodayOutlinedIcon sx={{ fontSize: 15, color: colors.grey[300] }} />
+        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 13 }}>
+          {formatGmt8Date(now)}
+        </Typography>
+      </Box>
+      <Box sx={{ flex: 1 }} />
+      <Box sx={{ textAlign: "right", lineHeight: 1.15, minWidth: 0 }}>
+        <Typography component="div" noWrap sx={{ fontWeight: 600, fontSize: 13, color: colors.grey[100] }}>
+          {user.name}
+        </Typography>
+        <Typography component="div" noWrap variant="caption" sx={{ color: colors.greenAccent[400], fontSize: 11 }}>
+          {user.roleLabel}
+        </Typography>
+      </Box>
+    </Box>
+
     {/* PHONE DROP-DOWN MENU: a panel that slides down under the bar */}
     <Collapse
       in={navOpen}

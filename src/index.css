@@ -21,6 +21,9 @@ body,
   flex: 1;
   min-width: 0;
   font-family: "Source Sans Pro", sans-serif;
+  /* room at the bottom so the chat button never covers the last controls
+     (e.g. the table's page arrows) */
+  padding-bottom: 88px;
 }
 
 ::-webkit-scrollbar {

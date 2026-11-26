@@ -233,8 +233,8 @@ export const themeSettings = (mode, { glass = false } = {}) => {
             // MUI X Data Grid (v8+) reads its colors from palette.DataGrid
             DataGrid: {
               bg: g ? "transparent" : colors.primary[400],
-              headerBg: g ? "rgba(26, 74, 82, 0.62)" : colors.blueAccent[700],
-              pinnedBg: g ? "rgba(7, 24, 27, 0.85)" : colors.primary[400],
+              headerBg: colors.blueAccent[700],
+              pinnedBg: g ? "#0b2226" : colors.primary[400],
             },
           }
         : {
@@ -255,8 +255,8 @@ export const themeSettings = (mode, { glass = false } = {}) => {
             },
             DataGrid: {
               bg: g ? "transparent" : colors.primary[400],
-              headerBg: g ? "rgba(121, 204, 210, 0.55)" : colors.blueAccent[700],
-              pinnedBg: g ? "rgba(255, 255, 255, 0.85)" : colors.primary[400],
+              headerBg: colors.blueAccent[700],
+              pinnedBg: g ? "#f4f8f8" : colors.primary[400],
             },
           }),
     },
@@ -299,13 +299,32 @@ export const themeSettings = (mode, { glass = false } = {}) => {
           },
         },
       },
+      // The page colour is on <html> too: on phones the page is taller than
+      // <body>, and below it the browser showed the dark loading colour.
+      // The glass glow sits on a fixed layer behind everything, because
+      // phones (Android Chrome, iOS Safari) ignore background-attachment: fixed.
+      MuiCssBaseline: {
+        styleOverrides: {
+          html: { backgroundColor: mode === "dark" ? colors.primary[500] : g ? "#eef4f3" : "#fcfcfc" },
+          ...(g
+            ? {
+                body: {
+                  backgroundColor: "transparent",
+                  "&::before": {
+                    content: '""',
+                    position: "fixed",
+                    inset: 0,
+                    zIndex: -1,
+                    pointerEvents: "none",
+                    background: g.glow,
+                  },
+                },
+              }
+            : {}),
+        },
+      },
       ...(g
         ? {
-            MuiCssBaseline: {
-              styleOverrides: {
-                body: { background: g.glow, backgroundAttachment: "fixed" },
-              },
-            },
             // pop-ups: heavily frosted, rounder, the page behind slightly blurred
             MuiDialog: {
               styleOverrides: {
