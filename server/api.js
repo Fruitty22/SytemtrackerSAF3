@@ -1327,16 +1327,24 @@ export function createApi({ store = createStore() } = {}) {
       // Everything a page load needs in ONE request (vehicles, accounts, rules,
       // bookings) - on Vercel every request reads the database again, so one
       // request is much faster than four
-      route("GET", "/api/bootstrap", "user", ({ user }) => ({
-        vehicles: D.vehicles.filter((v) => canSeeVehicle(user, v)).map(vehicleOut),
-        users:
-          user.role === "admin" ? D.users.map((u) => ({ ...publicUser(u), vehicleCount: vehicleCount(u.id) })) : [],
-        disregards: D.disregards,
-        updated: D.disregardsUpdated,
-        criteria: D.criteria,
-        valueMeanings: D.valueMeanings,
-        events: D.events.filter((e) => canSeeEvent(user, e)).map((e) => publicEvent(user, e)),
-      })),
+      // ?since=<hash of what the page already has> -> { unchanged: true } when nothing
+      // changed, so the page can check for news often without downloading everything
+      route("GET", "/api/bootstrap", "user", ({ user, query }) => {
+        const data = {
+          vehicles: D.vehicles.filter((v) => canSeeVehicle(user, v)).map(vehicleOut),
+          users:
+            user.role === "admin" ? D.users.map((u) => ({ ...publicUser(u), vehicleCount: vehicleCount(u.id) })) : [],
+          disregards: D.disregards,
+          updated: D.disregardsUpdated,
+          criteria: D.criteria,
+          valueMeanings: D.valueMeanings,
+          events: D.events.filter((e) => canSeeEvent(user, e)).map((e) => publicEvent(user, e)),
+        };
+        const hash = crypto.createHash("sha1").update(JSON.stringify(data)).digest("base64url").slice(0, 20);
+        const since = typeof query?.get === "function" ? query.get("since") : query?.since;
+        if (since && since === hash) return { unchanged: true, hash };
+        return { ...data, hash };
+      }),
 
       route("POST", "/api/events", "user", ({ user, body }) => {
         const e = checkedEvent(body, user);

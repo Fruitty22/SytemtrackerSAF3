@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../api/client";
+import { api, nodeStore } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { DEFAULT_VEHICLE_TYPES } from "../../shared/config.js";
 import { deployability } from "../../shared/deployability.js";
@@ -27,51 +27,104 @@ export function VehiclesProvider({ children }) {
   // Only the newest reload may update the page: an older one that answers
   // late is ignored, and "loading" always ends with the newest one.
   const latest = useRef(0);
-  const inFlight = useRef(false);
-  // { soft: true } = only if nothing is loading right now (page opened, first load)
-  const refresh = useCallback(async ({ soft = false } = {}) => {
+  // which account + node the load in flight is for: a soft reload is skipped only
+  // when the SAME data is already on its way (after a login or a node switch a
+  // load for the old account / node must not stand in for the new one)
+  const inFlight = useRef(null);
+  const lastLoaded = useRef(0); // when the data last arrived
+  const lastHash = useRef(""); // the server's fingerprint of what the page has ("key|hash")
+  const retries = useRef(0);
+  const refreshRef = useRef(null);
+  const [slow, setSlow] = useState(false); // loading for more than a few seconds
+
+  // { soft: true } = only if this data isn't already loading (page opened, first load)
+  // { quiet: true } = in the background: no loading bars, keep the old data on errors
+  const refresh = useCallback(async ({ soft = false, quiet = false } = {}) => {
     if (!user) return;
-    if (soft && inFlight.current) return;
+    const key = `${user.id}:${nodeStore.get() ?? ""}`;
+    if ((soft || quiet) && inFlight.current === key) return;
     const mine = ++latest.current;
-    inFlight.current = true;
-    setLoading(true);
-    setError("");
+    inFlight.current = key;
+    if (!quiet) {
+      setLoading(true);
+      setError("");
+    }
+    const slowTimer = quiet ? null : setTimeout(() => mine === latest.current && setSlow(true), 5000);
     try {
       // one request for everything (see /api/bootstrap)
-      const all = await api("/bootstrap");
+      // a background check sends what the page already has: the server then
+      // answers { unchanged: true } (a few bytes) when nothing is new
+      const [haveKey, haveHash] = lastHash.current.split("|");
+      const since = quiet && haveKey === key && haveHash ? `?since=${encodeURIComponent(haveHash)}` : "";
+      const all = await api(`/bootstrap${since}`);
       if (mine !== latest.current) return;
-      const vehicleData = all;
-      const userData = all;
-      const disregardData = all;
-      const eventData = all;
+      lastLoaded.current = Date.now();
+      retries.current = 0;
+      setError("");
+      if (all.unchanged) return; // nothing changed: leave the page alone
+      lastHash.current = `${key}|${all.hash ?? ""}`;
       // the criteria list decides which fields every page shows and counts,
       // so it is applied before the vehicles are shown
-      applyCriteria(disregardData.criteria);
-      setCriteria(disregardData.criteria ?? []);
-      setValueMeanings(disregardData.valueMeanings ?? {});
-      setEvents(eventData.events);
-      setVehicles(vehicleData.vehicles);
-      setUsers(userData.users);
-      setDisregards(disregardData.disregards);
-      setDisregardsUpdated(disregardData.updated ?? {});
+      applyCriteria(all.criteria);
+      setCriteria(all.criteria ?? []);
+      setValueMeanings(all.valueMeanings ?? {});
+      setEvents(all.events);
+      setVehicles(all.vehicles);
+      setUsers(all.users);
+      setDisregards(all.disregards);
+      setDisregardsUpdated(all.updated ?? {});
     } catch (err) {
-      if (mine === latest.current) setError(err.message);
+      if (mine !== latest.current) return;
+      if (err.status === 401) return; // logged out: nothing to retry
+      if (!quiet) setError(err.message);
+      // a slow start or a dropped connection usually works a moment later: try again by itself
+      if (retries.current < 3) {
+        retries.current += 1;
+        setTimeout(() => refreshRef.current?.({ soft: true, quiet: lastLoaded.current > 0 }), 1500 * retries.current);
+      }
     } finally {
+      clearTimeout(slowTimer);
       if (mine === latest.current) {
-        setLoading(false);
-        inFlight.current = false;
+        if (!quiet) setLoading(false);
+        setSlow(false);
+        inFlight.current = null;
       }
     }
   }, [user]);
+  refreshRef.current = refresh;
 
   useEffect(() => {
     if (user) refresh({ soft: true });
     else {
+      lastHash.current = "";
+      lastLoaded.current = 0;
       setVehicles([]);
       setUsers([]);
       setEvents([]);
     }
   }, [user, refresh]);
+
+  // Keep the data fresh without pressing refresh: when the tab comes back into
+  // view, the window gets focus or the connection returns, and every 20 seconds
+  // while the page is open. Only changes re-draw the page.
+  useEffect(() => {
+    if (!user) return undefined;
+    const tick = (force) => {
+      if (document.visibilityState !== "visible") return;
+      if (force === true || Date.now() - lastLoaded.current > 18000) refreshRef.current?.({ quiet: lastLoaded.current > 0, soft: true });
+    };
+    const onShow = () => tick(Date.now() - lastLoaded.current > 5000);
+    const id = setInterval(tick, 20000);
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("focus", onShow);
+    window.addEventListener("online", onShow);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onShow);
+      window.removeEventListener("focus", onShow);
+      window.removeEventListener("online", onShow);
+    };
+  }, [user]);
 
   // a new day starts bookings / ends them: check the date every minute
   useEffect(() => {
@@ -229,6 +282,7 @@ export function VehiclesProvider({ children }) {
       updateEvent,
       deleteEvent,
       loading,
+      slow,
       error,
       refresh,
       createVehicle,
@@ -238,7 +292,7 @@ export function VehiclesProvider({ children }) {
       assignVehicles,
       deleteVehicles,
     }),
-    [vehicles, users, upsertUser, vehicleTypes, disregards, disregardsUpdated, saveDisregards, criteria, saveCriteria, valueMeanings, deployOf, events, today, createEvent, updateEvent, deleteEvent, loading, error, refresh, createVehicle, updateVehicle, deleteVehicle, importVehicles, assignVehicles, deleteVehicles]
+    [vehicles, users, upsertUser, vehicleTypes, disregards, disregardsUpdated, saveDisregards, criteria, saveCriteria, valueMeanings, deployOf, events, today, createEvent, updateEvent, deleteEvent, loading, slow, error, refresh, createVehicle, updateVehicle, deleteVehicle, importVehicles, assignVehicles, deleteVehicles]
   );
 
   return <VehiclesContext.Provider value={value}>{children}</VehiclesContext.Provider>;

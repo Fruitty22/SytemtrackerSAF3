@@ -20,6 +20,7 @@ import Tasking from "./scenes/tasking";
 import Criteria from "./scenes/criteria";
 import Assistant from "./components/assistant/Assistant";
 import NodeTransition from "./components/NodeTransition";
+import SlowNotice from "./components/SlowNotice";
 import Placeholder from "./scenes/placeholder";
 
 // Pages that are really built. Everything else in src/navigation.js
@@ -106,6 +107,7 @@ function App() {
         <Sidebar />
         <main className="content">
           <Topbar />
+          <SlowNotice />
           {/* key: a different account starts with fresh pages */}
           <Pages key={`${node?.key}-${user.id}`} />
         </main>
