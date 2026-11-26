@@ -10,6 +10,7 @@
 // It uses the same tools (and the same permission checks) as the AI assistants.
 import { HELP_GUIDE } from "./assistant-guide.js";
 import { BLOCK_FIELDS, MAINTENANCE_FIELDS, DEPLOY_LABELS } from "../shared/config.js";
+import { closest, compact } from "./assistant-fuzzy.js";
 
 // ---------------------------------------------------------------- help search
 
@@ -135,6 +136,23 @@ export function findFields(text) {
     taken.push([start, end]);
     found.push({ name: m.name, kind: m.kind, index: start, end });
   }
+  // typos: "aircond", "p platee", "cleanliness", "canopi" -> closest field (1-3 words at a time)
+  const words = [...text.matchAll(/[a-z0-9]+/gi)].map((m) => ({ w: m[0], start: m.index, end: m.index + m[0].length }));
+  const targets = fieldMatchers().map((m) => ({ key: compact(m.phrase), value: m.name, kind: m.kind }));
+  for (let n = 1; n <= 3; n += 1) { // smallest span first, so "whel choke y" keeps its "y"
+    for (let i = 0; i + n <= words.length; i += 1) {
+      const span = words.slice(i, i + n);
+      const start = span[0].start;
+      const end = span[n - 1].end;
+      if (span.some((x) => /^\d{3,}$/.test(x.w))) continue; // MIDs, dates
+      if (n > 1 && span[n - 1].w.length === 1) continue; // a trailing Y / N is the value
+      if (taken.some(([a, b]) => start < b && end > a)) continue;
+      const hit = closest(span.map((x) => x.w).join(""), targets);
+      if (!hit || found.some((f) => f.name === hit.value)) continue;
+      taken.push([start, end]);
+      found.push({ name: hit.value, kind: hit.kind, index: start, end, fuzzy: text.slice(start, end) });
+    }
+  }
   return found.sort((a, b) => a.index - b.index);
 }
 
@@ -145,10 +163,14 @@ const CHANGE = /\b(set|mark|change|update|put|make|clear|remove|unblock|release|
 
 // ---------------------------------------------------------------- the assistant
 
-export function runBuiltin({ question, tools, today, user }) {
+// typo corrections made while reading this question ("read 'vamtacc' as VAMTAC")
+let NOTES = [];
+
+export function runBuiltin({ question, tools, today, user, prev = null }) {
   const h = tools.handlers;
-  const text = question.trim();
-  const lower = text.toLowerCase();
+  let text = question.trim();
+  let lower = text.toLowerCase();
+  NOTES = [];
 
   if (/^(hi|hello|hey|good (morning|afternoon|evening)|yo|sup)\b[\s!.]*$/i.test(text)) {
     return reply(`Hi ${user.name}! Ask me how to use a page, about your vehicles ("which are unavailable?"), or for a change ("set 21714 aircon N").`);
@@ -177,9 +199,57 @@ export function runBuiltin({ question, tools, today, user }) {
   const candidates = [...new Set((text.match(/\b[A-Z]{0,3}\d{3,7}[A-Z]?\b/gi) ?? []).map((m) => m.toUpperCase()))];
   const midMention = /\bmid\s*(?:no\.?|number)?\s*:?\s*([a-z0-9-]+)/gi;
   for (const m of text.matchAll(midMention)) candidates.push(m[1].toUpperCase());
-  const known = candidates.length ? h.search_vehicles({ mids: candidates, limit: 200 }).vehicles.map((v) => v.mid) : [];
+  let known = candidates.length ? h.search_vehicles({ mids: candidates, limit: 200 }).vehicles.map((v) => v.mid) : [];
+  // "those", "them", "these vehicles" -> the vehicles of the last list
+  const scoped = !candidates.length && prev?.lastList?.mids?.length && /\b(those|them|these|they|that list|the same (vehicles|ones)|same ones)\b/i.test(lower);
+  if (scoped) {
+    known = h.search_vehicles({ mids: prev.lastList.mids, limit: 200 }).vehicles?.map((v) => v.mid) ?? [];
+    // "set canopy N on those" -> read it as "set canopy N" for those vehicles
+    text = text.replace(/\s*\b(on|for|to|of|in)?\s*\b(all\s+)?(those|them|these|they|that list|the same (vehicles|ones)|same ones)(\s+vehicles)?\b/gi, " ").replace(/\s+/g, " ").trim();
+    lower = text.toLowerCase();
+  }
   const unknownMids = candidates.filter((m) => /^\d{3,7}$/.test(m) && !known.includes(m));
   const fields = findFields(text);
+  for (const f of fields) if (f.fuzzy) NOTES.push(`read "${f.fuzzy}" as ${f.name}`);
+
+  // ---- follow-ups on the last change: "undo", "same for luv", "do the same for 21718"
+  const last = prev?.lastAction;
+  if (/^\s*(undo|revert|reverse|put it back|change it back|cancel (that|the last) change)\b/i.test(lower)) {
+    if (!last?.items?.length) return reply("There's no change from this chat to undo.");
+    if (!last.undo?.length) return reply("I can't undo a booking or a new vehicle from the chat - delete it on the Calendar or Manage Vehicles page.");
+    const results = last.undo.map((u) => h[u.tool]?.(u.input) ?? { error: "Can't undo that." });
+    const bad = results.filter((r) => !r.prepared).map((r) => r.error);
+    if (!results.some((r) => r.prepared)) return reply(`Nothing to undo: ${bad[0]}`);
+    return reply(`Here is the undo - press **Confirm** to put it back the way it was.${bad.length ? `\n- ${bad.join("\n- ")}` : ""}`);
+  }
+  const sameAsks = /\b(same|likewise)\b|\b(too|also|as well)\s*[.!?]*$|^\s*(and|also|now)\s+(for\s+)?\S+/i.test(lower);
+  if (last?.items?.length && sameAsks && !fields.length) {
+    const first = last.items[0];
+    const mids = [...new Set((text.match(/\b[A-Z]{0,3}\d{3,7}[A-Z]?\b/gi) ?? []).map((m) => m.toUpperCase()))];
+    let out = [];
+    if (first.tool === "propose_disregard") {
+      const target = text
+        .replace(/\b(do|the|same|thing|likewise|for|with|to|and|also|too|as well|please|pls|now|again|it|that|every|all)\b/gi, " ")
+        .replace(/[^a-z0-9() -]+/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!target) return reply('Same for which vehicle type? e.g. "same for luv".');
+      out = [h.propose_disregard({ type: target, ignore: first.input.ignore, count: first.input.count })];
+    } else if (first.tool === "propose_vehicle_change" || first.tool === "propose_booking") {
+      if (!mids.length) return reply('Same for which vehicle? e.g. "same for 21718".');
+      if (first.tool === "propose_booking") out = [h.propose_booking({ ...first.input, mids })];
+      else {
+        const { mid: _m, ...change } = first.input;
+        out = mids.map((mid) => h.propose_vehicle_change({ mid, ...change }));
+      }
+    }
+    if (out.length) {
+      const ok = out.filter((r) => r.prepared);
+      if (!ok.length) return reply(out[0].error);
+      const errs = out.filter((r) => !r.prepared).map((r) => `- ${r.error}`);
+      return reply(`Same change prepared - check and press **Confirm** to save.${errs.length ? `\n${errs.join("\n")}` : ""}`);
+    }
+  }
 
   // ---- 0. a booking: "book 21714 21717 for tasking XCA tomorrow", "book 21714 servicing 12/11 to 14/11"
   if (/\b(book|booking|reserve|schedule)\b/i.test(lower) && (known.length || unknownMids.length) && !/\bhow\b/i.test(lower)) {
@@ -313,6 +383,23 @@ export function runBuiltin({ question, tools, today, user }) {
     return reply(lines.join("\n"));
   }
 
+  // ---- 1b. a question about the last list: "which of those are on tasking", "how many of them are down"
+  if (scoped && known.length) {
+    const st = /\b(unavailable|not available|down|u\/s|unserviceable)\b/i.test(lower)
+      ? "unavailable"
+      : /\b(deployed|in use|out)\b/i.test(lower)
+        ? "deployed"
+        : /\b(available|serviceable|ready|free)\b/i.test(lower)
+          ? "available"
+          : undefined;
+    const list = h.search_vehicles({ mids: known, status: st, reason: fields[0]?.name, limit: 200 });
+    const what = [st && { unavailable: DEPLOY_LABELS.no, deployed: DEPLOY_LABELS.deployed, available: DEPLOY_LABELS.yes }[st], fields[0] && `with ${fields[0].name}`]
+      .filter(Boolean)
+      .join(" ");
+    if (/\bhow many\b/i.test(lower)) return reply(`**${list.found}** of those ${known.length} vehicles${what ? ` are ${what}` : ""}.`);
+    return reply(listText(list, `of those ${known.length}${what ? `: ${what}` : ""}`));
+  }
+
   // ---- 2. one or a few vehicles: "21714", "why is 21714 unavailable"
   if (known.length && known.length <= 5) {
     return reply(known.map((mid) => vehicleText(h.get_vehicle({ mid }))).join("\n\n"));
@@ -321,7 +408,7 @@ export function runBuiltin({ question, tools, today, user }) {
     const list = h.search_vehicles({ mids: known, limit: 200 });
     return reply(listText(list, `${known.length} vehicles`));
   }
-  if (unknownMids.length && !/\b(how|what|where|why)\b/.test(lower)) {
+  if (unknownMids.length && !/\bhow (do|can|to)\b/.test(lower)) {
     return reply(`I can't find vehicle ${unknownMids.join(", ")} among the vehicles you can see.`);
   }
 
@@ -410,7 +497,8 @@ export function runBuiltin({ question, tools, today, user }) {
   );
 
   function reply(textOut) {
-    return { reply: textOut, actions: tools.actions };
+    const notes = [...new Set([...NOTES, ...(tools.memo?.notes ?? [])])];
+    return { reply: (notes.length ? `_(I ${notes.join("; ")}.)_\n\n` : "") + textOut, actions: tools.actions };
   }
 }
 
@@ -525,11 +613,22 @@ function matchType(text, h) {
   for (const [re, part] of TYPE_WORDS) {
     if (re.test(text) && all.some((t) => t.includes(part))) return part;
   }
+  // a typo in a distinctive type word: "vamtacc", "agillis", "himar"
+  const typeWords = [...new Set(all.flatMap((t) => t.match(/[A-Z]{6,}/g) ?? []))]
+    .filter((w) => !["SYSTEM", "STORES"].includes(w))
+    .map((w) => ({ key: w, value: w }));
+  for (const w of text.match(/[a-z]{5,}/gi) ?? []) {
+    const hit = closest(w, typeWords);
+    if (hit) {
+      if (!NOTES.includes(`read "${w}" as ${hit.value}`)) NOTES.push(`read "${w}" as ${hit.value}`);
+      return hit.value;
+    }
+  }
   return null;
 }
 
 function matchExactType(text, h) {
-  const types = [...new Set(h.search_vehicles({ limit: 200 }).vehicles.map((v) => v.type))];
+  const types = h._types ? h._types() : [...new Set(h.search_vehicles({ limit: 200 }).vehicles.map((v) => v.type))];
   const all = h.fleet_summary({}).perType ? Object.keys(h.fleet_summary({}).perType) : types;
   const lower = ` ${text.toLowerCase().replace(/[^a-z0-9()]+/g, " ")} `;
   return (

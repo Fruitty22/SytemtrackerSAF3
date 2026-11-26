@@ -1,0 +1,773 @@
+{
+ "about": "Regression questions for the ARGUS assistant. Run: node tests/assistant-eval.mjs --db <copy of db.json> --user <admin> --password <pw>. Placeholders {MID1} {MID2} {MID3} {DOWN_MID} {TYPE} are filled from the data. 'requires' skips a case when no vehicle type contains that text. 'count' checks the reply has the exact number (worked out independently from the data). 'confirm' saves the cards like pressing Confirm.",
+ "cases": [
+  {
+   "name": "greeting",
+   "steps": [
+    {
+     "ask": "hi",
+     "expect": {
+      "replyHas": [
+       "hi"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "thanks",
+   "steps": [
+    {
+     "ask": "thanks",
+     "expect": {
+      "replyHas": [
+       "welcome"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "total",
+   "steps": [
+    {
+     "ask": "how many vehicles are there",
+     "expect": {
+      "count": {}
+     }
+    }
+   ]
+  },
+  {
+   "name": "total unavailable",
+   "steps": [
+    {
+     "ask": "how many vehicles are unavailable",
+     "expect": {
+      "count": {
+       "status": "unavailable"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "u/s slang",
+   "steps": [
+    {
+     "ask": "how many vehicles are u/s",
+     "expect": {
+      "count": {
+       "status": "unavailable"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "down slang",
+   "steps": [
+    {
+     "ask": "how many are down",
+     "expect": {
+      "count": {
+       "status": "unavailable"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "available",
+   "steps": [
+    {
+     "ask": "how many vehicles are available",
+     "expect": {
+      "count": {
+       "status": "available"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "deployed",
+   "steps": [
+    {
+     "ask": "how many vehicles are deployed",
+     "expect": {
+      "count": {
+       "status": "deployed"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "6 tonners down",
+   "requires": "6 TON",
+   "steps": [
+    {
+     "ask": "how many 6 tonners are down",
+     "expect": {
+      "count": {
+       "type": "6 TON",
+       "status": "unavailable"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "6 ton plural",
+   "requires": "6 TON",
+   "steps": [
+    {
+     "ask": "how many 6 tons are available",
+     "expect": {
+      "count": {
+       "type": "6 TON",
+       "status": "available"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "luv",
+   "requires": "AGILIS",
+   "steps": [
+    {
+     "ask": "how many luvs are available",
+     "expect": {
+      "count": {
+       "type": "AGILIS",
+       "status": "available"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "luv u/s",
+   "requires": "AGILIS",
+   "steps": [
+    {
+     "ask": "how many luv are u/s",
+     "expect": {
+      "count": {
+       "type": "AGILIS",
+       "status": "unavailable"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "vamtac",
+   "requires": "VAMTAC",
+   "steps": [
+    {
+     "ask": "how many vamtacs",
+     "expect": {
+      "count": {
+       "type": "VAMTAC"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "vamtac typo",
+   "requires": "VAMTAC",
+   "steps": [
+    {
+     "ask": "how many vamtacc are down",
+     "expect": {
+      "count": {
+       "type": "VAMTAC",
+       "status": "unavailable"
+      },
+      "replyHas": [
+       "VAMTAC"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "agilis typo",
+   "requires": "AGILIS",
+   "steps": [
+    {
+     "ask": "how many agillis are available",
+     "expect": {
+      "count": {
+       "type": "AGILIS",
+       "status": "available"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "crane",
+   "requires": "CRANE",
+   "steps": [
+    {
+     "ask": "how many cranes",
+     "expect": {
+      "count": {
+       "type": "CRANE"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "exact type",
+   "steps": [
+    {
+     "ask": "how many {TYPE}",
+     "expect": {
+      "count": {
+       "type": "{TYPE}"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "list unavailable",
+   "steps": [
+    {
+     "ask": "which vehicles are not available",
+     "expect": {
+      "listCount": {
+       "status": "unavailable"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "list 6 ton down",
+   "requires": "6 TON",
+   "steps": [
+    {
+     "ask": "which 6 TON are down",
+     "expect": {
+      "listCount": {
+       "type": "6 TON",
+       "status": "unavailable"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "list vamtacs",
+   "requires": "VAMTAC",
+   "steps": [
+    {
+     "ask": "list vamtacs",
+     "expect": {
+      "listCount": {
+       "type": "VAMTAC"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "reason filter",
+   "steps": [
+    {
+     "ask": "which vehicles have aircon N",
+     "expect": {
+      "replyLacks": [
+       "Sorry, I didn't understand"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "vor list",
+   "steps": [
+    {
+     "ask": "show me vehicles with vor",
+     "expect": {
+      "replyLacks": [
+       "Sorry, I didn't understand"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "one vehicle",
+   "steps": [
+    {
+     "ask": "tell me about {MID1}",
+     "expect": {
+      "replyHas": [
+       "{MID1}"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "why down",
+   "steps": [
+    {
+     "ask": "why is {DOWN_MID} unavailable",
+     "expect": {
+      "replyHas": [
+       "{DOWN_MID}",
+       "UNAVAILABLE"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "unknown mid",
+   "steps": [
+    {
+     "ask": "why is 9999991 down",
+     "expect": {
+      "replyHas": [
+       "can't find"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "rank commanders",
+   "steps": [
+    {
+     "ask": "which commander has the most unavailable vehicles",
+     "expect": {
+      "replyHas": [
+       "By commander"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "compare types",
+   "steps": [
+    {
+     "ask": "compare types",
+     "expect": {
+      "replyHas": [
+       "By type"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "top problems",
+   "steps": [
+    {
+     "ask": "top problems",
+     "expect": {
+      "replyHas": [
+       "By reason"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "how-to import",
+   "steps": [
+    {
+     "ask": "how do I import the excel files",
+     "expect": {
+      "replyHas": [
+       "Import"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "how-to disregards",
+   "steps": [
+    {
+     "ask": "how do i ignore aircon for a type",
+     "expect": {
+      "replyHas": [
+       "Disregards"
+      ],
+      "cards": 0
+     }
+    }
+   ]
+  },
+  {
+   "name": "how-to calendar",
+   "steps": [
+    {
+     "ask": "how do I book a vehicle",
+     "expect": {
+      "replyHas": [
+       "Calendar"
+      ],
+      "cards": 0
+     }
+    }
+   ]
+  },
+  {
+   "name": "glossary",
+   "steps": [
+    {
+     "ask": "what does deployed mean",
+     "expect": {
+      "replyHas": [
+       "DEPLOYED"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "change one item",
+   "steps": [
+    {
+     "ask": "set {MID1} canopy N",
+     "expect": {
+      "cards": 1,
+      "cardsHave": [
+       "{MID1}"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "change typo",
+   "steps": [
+    {
+     "ask": "set {MID1} canopi N",
+     "expect": {
+      "cards": 1,
+      "replyHas": [
+       "CANOPY"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "change two vehicles",
+   "steps": [
+    {
+     "ask": "set {MID1} and {MID2} tyres N",
+     "expect": {
+      "cards": 2
+     }
+    }
+   ]
+  },
+  {
+   "name": "tasking",
+   "steps": [
+    {
+     "ask": "put {MID2} on tasking EVAL1",
+     "expect": {
+      "cards": 1,
+      "cardsHave": [
+       "{MID2}"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "booking",
+   "steps": [
+    {
+     "ask": "book {MID1} for tasking XCA tomorrow",
+     "expect": {
+      "cards": 1,
+      "cardsHave": [
+       "Book"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "disregard mb",
+   "requires": "MB",
+   "steps": [
+    {
+     "ask": "ignore p plate for all mb",
+     "expect": {
+      "cardsHave": [
+       "MB"
+      ],
+      "cardsLack": [
+       "AMB"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "disregard 6 tonners",
+   "requires": "6 TON",
+   "steps": [
+    {
+     "ask": "dont count aircon for 6 tonners",
+     "expect": {
+      "cardsHave": [
+       "6 TON"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "disregard typo",
+   "requires": "AGILIS",
+   "steps": [
+    {
+     "ask": "disregard canopi for luv",
+     "expect": {
+      "cards": 1,
+      "cardsHave": [
+       "AGILIS"
+      ],
+      "replyHas": [
+       "CANOPY"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "disregard type typo",
+   "requires": "VAMTAC",
+   "steps": [
+    {
+     "ask": "ignore fe for vamtacc",
+     "expect": {
+      "cards": {
+       "min": 2,
+       "max": 25
+      },
+      "replyHas": [
+       "read \"vamtacc\" as VAMTAC"
+      ],
+      "cardsLack": [
+       "MB"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "disregard partial word",
+   "requires": "G300",
+   "steps": [
+    {
+     "ask": "ignore fe for g300 tower",
+     "expect": {
+      "cards": 1,
+      "cardsHave": [
+       "TOWER"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "disregard unknown type",
+   "steps": [
+    {
+     "ask": "ignore fe for zzqx99",
+     "expect": {
+      "cards": 0,
+      "replyHas": [
+       "No vehicle type"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "criteria needs admin",
+   "as": "commander",
+   "steps": [
+    {
+     "ask": "make aircon a blocked criteria",
+     "expect": {
+      "cards": 0,
+      "replyHas": [
+       "Only an Admin"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "criteria admin",
+   "steps": [
+    {
+     "ask": "stop using IVC 2 as a criteria",
+     "expect": {
+      "cards": 1,
+      "cardsHave": [
+       "Criteria"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "follow-up: those",
+   "steps": [
+    {
+     "ask": "which vehicles are not available",
+     "expect": {
+      "listCount": {
+       "status": "unavailable"
+      }
+     }
+    },
+    {
+     "ask": "how many of those have vor status",
+     "expect": {
+      "replyHas": [
+       "of those"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "follow-up: change those",
+   "steps": [
+    {
+     "ask": "list vehicles {MID1} {MID2} {MID3}",
+     "expect": {}
+    },
+    {
+     "ask": "set canopy N on those",
+     "expect": {
+      "cards": {
+       "min": 1,
+       "max": 3
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "follow-up: same for",
+   "steps": [
+    {
+     "ask": "set {MID1} canopy N",
+     "expect": {
+      "cards": 1
+     }
+    },
+    {
+     "ask": "same for {MID2}",
+     "expect": {
+      "cards": 1,
+      "cardsHave": [
+       "{MID2}"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "follow-up: same type",
+   "requires": "AGILIS",
+   "steps": [
+    {
+     "ask": "ignore canopy for luv",
+     "expect": {
+      "cards": 1
+     }
+    },
+    {
+     "ask": "do the same for vamtac",
+     "expect": {
+      "cardsHave": [
+       "VAMTAC"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "follow-up: undo",
+   "steps": [
+    {
+     "ask": "set {MID1} canopy N",
+     "confirm": true,
+     "expect": {
+      "cards": 1
+     }
+    },
+    {
+     "ask": "undo",
+     "expect": {
+      "cards": 1,
+      "replyHas": [
+       "undo"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "follow-up: undo disregard",
+   "requires": "AGILIS",
+   "steps": [
+    {
+     "ask": "ignore cushion cover for luv",
+     "confirm": true,
+     "expect": {
+      "cards": 1
+     }
+    },
+    {
+     "ask": "undo that",
+     "expect": {
+      "cards": 1,
+      "cardsHave": [
+       "AGILIS"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "follow-up: nothing to undo",
+   "steps": [
+    {
+     "ask": "undo",
+     "expect": {
+      "cards": 0,
+      "replyHas": [
+       "no change"
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

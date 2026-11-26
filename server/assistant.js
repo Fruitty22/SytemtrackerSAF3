@@ -12,6 +12,7 @@
 //   APP_TIMEZONE        optional, default Asia/Singapore ("today" for bookings)
 import { HELP_GUIDE } from "./assistant-guide.js";
 import { runBuiltin, guideSection, guideTitles, findFields } from "./assistant-builtin.js";
+import { closest } from "./assistant-fuzzy.js";
 import {
   BLOCK_FIELDS,
   DEPLOY_LABELS,
@@ -232,28 +233,78 @@ const aiError = (status) => {
 // The instructions for Groq / OpenAI-style services. Kept SHORT on purpose:
 // Groq's free tier allows only ~8,000 tokens a minute, so the user guide is
 // not sent every time - the model asks for the part it needs (help_guide tool).
-const systemText = ({ user, today, page, nodeName }) =>
-  "You are the assistant in the Fleet Admin Dashboard (SAF transport fleet serviceability web app, Singapore). " +
+const systemText = ({ user, today, page, nodeName, prev, withGuide = true, names = null }) =>
+  "You are the assistant in ARGUS, a fleet serviceability web app (SAF transport, Singapore). " +
   "Status: AVAILABLE; DEPLOYED (out on TASKING / SELF DRIVE / TLOAN / OVERSEAS or a tasking booking); UNAVAILABLE (VOR STATUS has X, " +
   "STANDBY or another blocked field has text, a Y/N maintenance item is N, or a servicing booking today). " +
   "Rules: use tools for ANY fleet data (it is the data imported from the Excel files), never guess or invent MIDs, names or numbers. " +
   "Quote counts exactly as the tool gives them (found / total). When listing, list every vehicle returned; if found > shown, say how many more there are. " +
   "A commander may be named by account or by Excel worksheet name - pass it as commander. For how-to questions call help_guide and answer with exact page and button names. " +
-  "For changes or bookings call the propose_* tools; the user must press Confirm on each card, so say it is ready to confirm, never saved. " +
-  "You cannot delete vehicles or change accounts. Ask one short question if unclear. " +
-  "DISREGARDS are per VEHICLE TYPE and apply to every vehicle of that type (e.g. 'ignore P-PLATE for all MB G300', 'don't count aircon for 6 tonners', 'count canopy again for luv'): use propose_disregard, never propose_vehicle_change. " +
-  "CRITERIA (Admin only) decide whether a column counts at all for the whole fleet: use propose_criteria. If a type name doesn't match, show the types and ask. " +
-  "For comparisons, rankings, 'which commander/type has most', breakdowns or 'analyse' call analyse_fleet (one call), not many searches. " +
+  (!names || names.some((n) => n.startsWith("propose_"))
+    ? "For changes or bookings call the propose_* tools; the user must press Confirm on each card, so say it is ready to confirm, never saved. " +
+      "You cannot delete vehicles or change accounts. "
+    : "") +
+  "Ask one short question if unclear. " +
+  (!names || names.includes("propose_disregard")
+    ? "DISREGARDS are per VEHICLE TYPE and apply to every vehicle of that type (e.g. 'ignore P-PLATE for all MB G300', 'don't count aircon for 6 tonners', 'count canopy again for luv'): use propose_disregard, never propose_vehicle_change. " +
+      "CRITERIA (Admin only) decide whether a column counts at all for the whole fleet: use propose_criteria. If a type name doesn't match, show the types and ask. "
+    : "") +
+  (!names || names.includes("analyse_fleet")
+    ? "For comparisons, rankings, 'which commander/type has most', breakdowns or 'analyse' call analyse_fleet (one call), not many searches. "
+    : "") +
   "Understand loose wording: 6 tonner = 6 TON, luv = AGILIS AUTO (LUV), u/s / down / not ava = unavailable, svc = serviceable/available. " +
   "Answer style: first line = the direct answer with the key number; then up to 8 short bullets (most important first); if there is more, say how many more and offer to list them. " +
   "Use **bold** for numbers/MIDs and '- ' bullets, no tables. " +
-  `Guide sections: ${guideTitles().join("; ")}. ` +
+  (withGuide ? `Guide sections: ${guideTitles().join("; ")}. ` : "") +
   (nodeName
     ? `This is the ${nodeName} node: ALL the data the tools return is ${nodeName}'s fleet, so "${nodeName}" / "${nodeName} node" means the whole fleet (do not pass it as commander or type). `
     : "") +
   `Today is ${today}. User: ${user.name}, ${ROLES[user.role] ?? user.role}` +
   (user.role === "admin" ? " (sees everything)." : " (sees only own vehicles; no Admin pages).") +
-  (page ? ` Current page: ${page}.` : "");
+  (page ? ` Current page: ${page}.` : "") +
+  contextText(prev);
+
+// what this chat was about, so follow-ups work: "which of those...", "same for luv", "undo"
+export function contextText(prev) {
+  if (!prev) return "";
+  const out = [];
+  const l = prev.lastList;
+  if (l?.mids?.length) {
+    const f = l.filters ? ` (${Object.entries(l.filters).map(([k, v]) => `${k}=${v}`).join(", ")})` : "";
+    out.push(`Last list${f}: ${l.found ?? l.mids.length} vehicles, MIDs ${l.mids.slice(0, 40).join(" ")}${l.mids.length > 40 ? " ..." : ""}. "those/them/these" = this list (pass these mids).`);
+  } else if (prev.filters) {
+    out.push(`Last question was about ${Object.entries(prev.filters).map(([k, v]) => `${k}=${v}`).join(", ")}.`);
+  }
+  const a = prev.lastAction;
+  if (a?.items?.length) {
+    out.push(`Last change proposed: ${a.items.slice(0, 4).map((x) => `${x.tool} ${JSON.stringify(x.input)}`).join("; ").slice(0, 500)}. "same for X" / "also X" = repeat it for X.`);
+    if (a.undo?.length) out.push(`To undo it call: ${a.undo.slice(0, 6).map((x) => `${x.tool} ${JSON.stringify(x.input)}`).join("; ").slice(0, 600)}.`);
+    else if (a.noUndo) out.push("It can't be undone from the chat (delete it on its page).");
+  }
+  return out.length ? ` Earlier in this chat: ${out.join(" ")}` : "";
+}
+
+// Only the tools a question needs are sent (each one costs free-tier tokens every call).
+// The order stays the same so the start of every request is identical.
+const TOOL_GROUPS = [
+  { tools: ["help_guide"], re: /\b(how (do|can|to|does|is|should)|where|what (is|are|does)|explain|page|button|guide|help|can i|steps?|meaning|mean)\b/i },
+  { tools: ["analyse_fleet"], re: /\b(compar|most|least|rank|top|worst|best|breakdown|per|each|analy|by (type|commander|reason|worksheet)|which (commander|type|worksheet)s?|trend|summary|overview|readiness)/i },
+  { tools: ["list_bookings", "propose_booking"], re: /\b(book|booking|calendar|schedul|reserve|tomorrow|tmr|next (week|month)|from .* to |until|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}[/-]\d{1,2})/i },
+  { tools: ["propose_vehicle_change", "propose_new_vehicle", "get_rules"], re: /\b(set|mark|change|update|put|make|clear|remove|unblock|release|reset|assign|send|move|add|new vehicle|create|fix|to [yn]\b|is now|[yn]$)/i },
+  { tools: ["propose_disregard", "propose_criteria", "get_rules"], re: /\b(disregard|ignore|don'?t count|do not count|not count|stop counting|count\w* .*again|criteri|rules?|fields?|items?)/i },
+];
+const CORE_TOOLS = ["search_vehicles", "fleet_summary", "get_vehicle"];
+export function pickToolNames(question, prev, allNames) {
+  const want = new Set(CORE_TOOLS);
+  for (const g of TOOL_GROUPS) if (g.re.test(question)) g.tools.forEach((t) => want.add(t));
+  // a follow-up on the last change needs that change's tool
+  if (prev?.lastAction?.items?.length && /\b(same|undo|revert|reverse|back|again|also|too|as well|those|them|it)\b/i.test(question)) {
+    for (const x of [...prev.lastAction.items, ...(prev.lastAction.undo ?? [])]) want.add(x.tool);
+  }
+  // nothing specific asked: also allow analysis and the guide
+  if (want.size === CORE_TOOLS.length) ["analyse_fleet", "help_guide"].forEach((t) => want.add(t));
+  return allNames.filter((n) => want.has(n));
+}
 
 const HELP_TOOL = {
   name: "help_guide",
@@ -302,12 +353,12 @@ export function fitResult(result, max = RESULT_MAX) {
 }
 
 // OpenAI-style chat completions with tool calls (Groq, and most other services)
-async function runOpenAI({ provider, user, today, history, tools, page }) {
+async function runOpenAI({ provider, user, today, history, tools, page, prev }) {
   const models = provider.models ?? [provider.model];
   let lastErr;
   for (const model of models) {
     try {
-      return await runOpenAIModel({ provider, model, user, today, history, tools, page });
+      return await runOpenAIModel({ provider, model, user, today, history, tools, page, prev });
     } catch (err) {
       lastErr = err;
       if (!err.quota) throw err; // a wrong key won't get better with another model
@@ -318,9 +369,13 @@ async function runOpenAI({ provider, user, today, history, tools, page }) {
   throw lastErr;
 }
 
-async function runOpenAIModel({ provider, model, user, today, history, tools, page }) {
-  const messages = [{ role: "system", content: systemText({ user, today, page, nodeName: tools.nodeName }) }, ...history];
-  const fnTools = [HELP_TOOL, ...tools.list].map((t) => ({
+async function runOpenAIModel({ provider, model, user, today, history, tools, page, prev }) {
+  const question = history[history.length - 1]?.content ?? "";
+  const all = [HELP_TOOL, ...tools.list];
+  const names = pickToolNames(question, prev, all.map((t) => t.name));
+  const system = systemText({ user, today, page, nodeName: tools.nodeName, prev, withGuide: names.includes("help_guide"), names });
+  const messages = [{ role: "system", content: system }, ...history];
+  const fnTools = all.filter((t) => names.includes(t.name)).map((t) => ({
     type: "function",
     function: { name: t.name, description: t.description, parameters: t.input_schema },
   }));
@@ -401,6 +456,51 @@ async function runOpenAIModel({ provider, model, user, today, history, tools, pa
   return { reply: "Sorry, I couldn't work that out.", actions: tools.actions };
 }
 
+// ---------------------------------------------------------------- follow-up memory
+
+// the context the app sends back: only known shapes, small, never trusted for permissions
+// (every change it leads to is checked again, and saved only after the user confirms)
+const TOOL_NAMES = new Set(["propose_vehicle_change", "propose_new_vehicle", "propose_booking", "propose_disregard", "propose_criteria"]);
+export function cleanContext(c) {
+  if (!c || typeof c !== "object") return null;
+  const str = (x, n = 40) => (typeof x === "string" ? x.slice(0, n) : undefined);
+  const filters = (f) =>
+    f && typeof f === "object"
+      ? Object.fromEntries(["type", "commander", "status", "reason"].filter((k) => str(f[k])).map((k) => [k, str(f[k])]))
+      : null;
+  const calls = (list) =>
+    (Array.isArray(list) ? list : [])
+      .filter((x) => x && TOOL_NAMES.has(x.tool) && x.input && typeof x.input === "object" && JSON.stringify(x.input).length < 3000)
+      .slice(0, 25)
+      .map((x) => ({ tool: x.tool, input: x.input }));
+  const out = {};
+  const l = c.lastList;
+  if (l && Array.isArray(l.mids)) {
+    out.lastList = {
+      mids: l.mids.filter((m) => typeof m === "string").map((m) => m.slice(0, 16)).slice(0, 60),
+      found: Number.isFinite(l.found) ? l.found : undefined,
+      filters: filters(l.filters),
+    };
+  }
+  const f = filters(c.filters);
+  if (f && Object.keys(f).length) out.filters = f;
+  if (c.lastAction && typeof c.lastAction === "object") {
+    const items = calls(c.lastAction.items);
+    if (items.length) out.lastAction = { items, undo: calls(c.lastAction.undo), ...(c.lastAction.noUndo ? { noUndo: true } : {}) };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// questions the built-in answers as well as the AI: plain counts, greetings, thanks
+export function isSimple(question, prev) {
+  const q = String(question ?? "").trim().toLowerCase();
+  if (/^(undo|undo (that|it|the last change)|revert|revert (that|it)|put it back|change it back)[\s!.]*$/.test(q)) return true;
+  if (/^(hi|hello|hey|thanks|thank you|ok|okay|noted|great|cool)\b[\s!.]*$/.test(q)) return true;
+  if (!/^(how many|how much|count|total|number of)\b/.test(q)) return false;
+  if (/\b(why|compare|vs|versus|most|least|each|per|by|and|or|if|when|book|which|those|them|these|they|same|commander|worksheet|sheet)\b/.test(q)) return false;
+  return q.split(/\s+/).length <= 10 && !(prev && /\b(it|that)\b/.test(q));
+}
+
 // ---------------------------------------------------------------- the routes
 
 export function assistantRoutes(ctx) {
@@ -425,7 +525,7 @@ export function assistantRoutes(ctx) {
 
     const today = todayIn(process.env.APP_TIMEZONE || "Asia/Singapore");
     const provider = pickProvider();
-    if (provider.kind !== "builtin") {
+    if (provider.kind !== "builtin" && !isSimple(history[history.length - 1].content, cleanContext(body.context))) {
       // keeps one person from using up the free AI quota for everyone
       const now = Date.now();
       const times = (recent.get(user.id) ?? []).filter((t) => now - t < 60_000);
@@ -434,12 +534,22 @@ export function assistantRoutes(ctx) {
       recent.set(user.id, times);
     }
     const page = String(body.page ?? "").slice(0, 80);
-    const builtin = () => runBuiltin({ question: history[history.length - 1].content, tools: makeTools({ user, today }), today, user });
+    const prev = cleanContext(body.context);
+    const question = history[history.length - 1].content;
+    const builtin = () => {
+      const tools = makeTools({ user, today, prev });
+      return { ...runBuiltin({ question, tools, today, user, prev }), context: tools.context() };
+    };
     if (provider.kind === "builtin") return { ...builtin(), mode: provider.label };
+    // simple counts and greetings: the built-in answers instantly and saves the free AI quota
+    if (isSimple(question, prev)) {
+      const out = builtin();
+      if (!/^Sorry\b/.test(out.reply)) return { ...out, mode: "Built-in (instant)" };
+    }
     try {
-      const tools = makeTools({ user, today });
+      const tools = makeTools({ user, today, prev });
       const run = provider.kind === "anthropic" ? runModel : runOpenAI;
-      return { ...(await run({ provider, key: provider.key, user, today, history, tools, page })), mode: provider.label };
+      return { ...(await run({ provider, key: provider.key, user, today, history, tools, page, prev })), context: tools.context(), mode: provider.label };
     } catch (err) {
       // free quota used up / service down: the built-in assistant still answers
       console.error("[assistant] falling back to built-in:", err.message);
@@ -454,8 +564,26 @@ export function assistantRoutes(ctx) {
 
   // ---- helpers on the live data
 
-  function makeTools({ user, today }) {
+  function makeTools({ user, today, prev = null }) {
     const visible = D.vehicles.filter((v) => canSeeVehicle(user, v));
+    // what this chat was about (sent back by the app with the next question):
+    // the last list of vehicles, the filters used and the last change (+ how to undo it)
+    const memo = {
+      lastList: prev?.lastList ?? null,
+      filters: prev?.filters ?? null,
+      lastAction: prev?.lastAction ?? null,
+      notes: [],
+      fresh: true, // the first change proposed this turn replaces lastAction
+    };
+    const rememberAction = (tool, input, undo) => {
+      if (memo.fresh) {
+        memo.lastAction = { items: [], undo: [] };
+        memo.fresh = false;
+      }
+      memo.lastAction.items.push({ tool, input });
+      if (undo === null) memo.lastAction.noUndo = true;
+      else if (undo) memo.lastAction.undo.push(...(Array.isArray(undo) ? undo : [undo]));
+    };
     const todayEvents = eventsByVehicleOn(D.events, today);
     const statusOf = (v) => deployability(v, D.disregards, todayEvents.get(v.id) ?? []);
     const byMid = (mid) => {
@@ -473,7 +601,9 @@ export function assistantRoutes(ctx) {
       const unknown = [];
       for (const raw of Array.isArray(list) ? list : list ? [list] : []) {
         const exact = allFields().find((f) => compact(f) === compact(raw));
-        const hit = exact ?? findFields(String(raw)).map((f) => f.name)[0];
+        const guess = exact ? null : findFields(String(raw))[0];
+        const hit = exact ?? guess?.name;
+        if (guess?.fuzzy) memo.notes.push(`read "${guess.fuzzy}" as ${guess.name}`);
         if (hit) names.push(hit);
         else if (String(raw).trim()) unknown.push(String(raw).trim());
       }
@@ -508,18 +638,36 @@ export function assistantRoutes(ctx) {
       // remaining words/numbers: "g300 tower" -> G, 300, TOWER
       parts.push(...(cleaned.toUpperCase().match(/[A-Z]+|\d+/g) ?? []));
       if (!parts.length) return [];
-      // a part must start where a word of the type starts ("MB" is not inside "AMB")
+      // a part must start where a word of the type starts ("MB" is not inside "AMB"), and must
+      // not run part-way into the next word ("VAMTACC" is not VAMTAC + the C of CREW)
       const hits = (t, part) => {
         const c = compact(t);
         const starts = new Set();
+        const ends = new Set();
         let at = 0;
         for (const w of t.toUpperCase().match(/[A-Z]+|\d+/g) ?? []) {
           starts.add(at);
           at += w.length;
+          ends.add(at);
         }
-        for (let i = c.indexOf(part); i >= 0; i = c.indexOf(part, i + 1)) if (starts.has(i)) return true;
+        for (let i = c.indexOf(part); i >= 0; i = c.indexOf(part, i + 1)) {
+          if (!starts.has(i)) continue;
+          const end = i + part.length;
+          const crosses = [...starts].some((x) => x > i && x < end);
+          if (ends.has(end) || !crosses) return true;
+        }
         return false;
       };
+      // a typo in a word ("vamtacc", "agillis", "himar") -> the closest word of a type name
+      const typeWords = [...new Set(types.flatMap((t) => t.toUpperCase().match(/[A-Z]+|\d+/g) ?? []))].map((w) => ({ key: w, value: w }));
+      for (let i = 0; i < parts.length; i += 1) {
+        if (types.some((t) => hits(t, parts[i]))) continue;
+        const fix = closest(parts[i], typeWords);
+        if (fix) {
+          memo.notes.push(`read "${parts[i].toLowerCase()}" as ${fix.value}`);
+          parts[i] = fix.value;
+        }
+      }
       return types.filter((t) => parts.every((p) => hits(t, p)));
     };
 
@@ -564,14 +712,22 @@ export function assistantRoutes(ctx) {
         const names = handlers._names();
         return { error: `No commander or worksheet called "${commander}" in this node.`, commandersAndWorksheets: names.slice(0, 60) };
       }
-      if (type && !isNodeWord(type) && !visible.some((v) => sameType(v.type, type) || v.type.includes(String(type).toUpperCase()))) {
+      if (type && !isNodeWord(type) && !visible.some((v) => typeMatches(v, type))) {
         return { error: `No vehicle type "${type}" in this node.`, types: [...new Set(visible.map((v) => v.type))] };
       }
       return null;
     };
     // {X: {available, deployed, unavailable}} -> {X: "avail/deployed/unavail"}
     const squash = (o) => Object.fromEntries(Object.entries(o).map(([k, c]) => [k, `${c.available}/${c.deployed}/${c.unavailable}`]));
-    const typeMatches = (v, type) => sameType(v.type, type) || v.type.includes(String(type).toUpperCase().trim());
+    const plainType = (v, type) => sameType(v.type, type) || v.type.includes(String(type).toUpperCase().trim());
+    // "vamtacc", "6 tonners", "luv" -> the real types (only when the plain match finds nothing)
+    const looseCache = new Map();
+    const looseTypes = (type) => {
+      const key = String(type);
+      if (!looseCache.has(key)) looseCache.set(key, new Set(visible.some((v) => plainType(v, type)) ? [] : resolveTypes(type)));
+      return looseCache.get(key);
+    };
+    const typeMatches = (v, type) => plainType(v, type) || looseTypes(type).has(v.type);
     const sameType = (a, b) => normalizeTitle(a) === normalizeTitle(b) || titlesMatch(a, b);
     const fieldName = (name, list) => list.find((f) => normalizeTitle(f) === normalizeTitle(name)) ?? list.find((f) => titlesMatch(f, name));
     const blockNames = () => BLOCK_FIELDS.map((f) => f.name);
@@ -632,6 +788,10 @@ export function assistantRoutes(ctx) {
     };
 
     const handlers = {
+      // (built-in assistant only) every vehicle type this user can see - not remembered as a "list"
+      _types() {
+        return [...new Set(visible.map((v) => v.type))];
+      },
       // (built-in assistant only) every commander / worksheet name this user can see
       _names() {
         return [...new Set(visible.flatMap((v) => [ownerName(v), v.sourceSheet]).filter((n) => n && n !== "Unassigned"))];
@@ -878,9 +1038,14 @@ export function assistantRoutes(ctx) {
           };
           actions.push(action);
           made.push({ type, vehicles: ofType.length, statusChanges: moves });
+          rememberAction(
+            "propose_disregard",
+            { type, ignore: wanted.ignore.names, count: wanted.count.names },
+            { tool: "propose_disregard", input: { type, ignore: removed, count: added } }
+          );
         }
         if (!made.length) return { error: `Nothing would change - ${types.join(", ")} already ${wanted.ignore.names.length ? "ignore" : "count"} those items.` };
-        return { prepared: true, cards: made, note: "One card per vehicle type. Waiting for the user to press Confirm - NOT saved yet." };
+        return { prepared: true, ...(memo.notes.length ? { assumed: memo.notes.join("; ") } : {}), cards: made, note: "One card per vehicle type. Waiting for the user to press Confirm - NOT saved yet." };
       },
 
       propose_criteria(input) {
@@ -896,6 +1061,8 @@ export function assistantRoutes(ctx) {
         };
         const set = [];
         const changes = [];
+        const undoSet = [];
+        const undoRemove = [];
         for (const item of Array.isArray(input.set) ? input.set : []) {
           const category = String(item?.category ?? "").toUpperCase();
           if (!LABEL[category]) return { error: `Category must be MAINTENANCE, BLOCKED or IGNORE (got ${item?.category}).` };
@@ -904,6 +1071,8 @@ export function assistantRoutes(ctx) {
           if (!name) return { error: "A criteria needs a name." };
           if (existing?.category === category) continue;
           set.push({ name, category });
+          if (existing) undoSet.push({ name, category: existing.category });
+          else undoRemove.push(name);
           changes.push({ field: name, from: existing ? LABEL[existing.category] : "(new)", to: LABEL[category] });
         }
         const remove = [];
@@ -911,6 +1080,7 @@ export function assistantRoutes(ctx) {
           const existing = find(raw);
           if (!existing) return { error: `No criteria called ${raw}.` };
           remove.push(existing.name);
+          undoSet.push({ name: existing.name, category: existing.category });
           changes.push({ field: existing.name, from: LABEL[existing.category], to: "(removed)" });
         }
         if (!changes.length) return { error: "Nothing would change - the criteria already look like that." };
@@ -922,6 +1092,7 @@ export function assistantRoutes(ctx) {
           request: { method: "PUT", path: "/criteria", body: { set, remove } },
         };
         actions.push(action);
+        rememberAction("propose_criteria", { set, remove }, { tool: "propose_criteria", input: { set: undoSet, remove: undoRemove } });
         return { prepared: true, card: action.title, changes, note: "Applies to every vehicle in this node. Waiting for the user to press Confirm - NOT saved yet." };
       },
 
@@ -949,6 +1120,13 @@ export function assistantRoutes(ctx) {
           request: { method: "PATCH", path: `/vehicles/${v.id}`, body: patch },
         };
         actions.push(action);
+        const undo = { mid: v.mid };
+        for (const f of Object.keys(patch.blocks ?? {})) (undo.blocks ??= {})[f] = v.blocks?.[f]?.value ?? "";
+        for (const f of Object.keys(patch.maintenance ?? {})) (undo.maintenance ??= {})[f] = v.maintenance?.[f]?.level ?? "";
+        if ("remarks" in patch) undo.remarks = v.remarks ?? "";
+        if ("type" in patch) undo.type = v.type;
+        const { mid: _m, ...same } = input;
+        rememberAction("propose_vehicle_change", { mid: v.mid, ...same }, { tool: "propose_vehicle_change", input: undo });
         return { prepared: true, card: action.title, changes, statusAfter: action.statusAfter, note: "Waiting for the user to press Confirm - NOT saved yet." };
       },
 
@@ -972,6 +1150,7 @@ export function assistantRoutes(ctx) {
           request: { method: "POST", path: "/vehicles", body },
         };
         actions.push(action);
+        rememberAction("propose_new_vehicle", { ...input }, null);
         return { prepared: true, card: action.title, note: "Waiting for the user to press Confirm - NOT saved yet." };
       },
 
@@ -1008,11 +1187,43 @@ export function assistantRoutes(ctx) {
           request: { method: "POST", path: "/events", body },
         };
         actions.push(action);
+        rememberAction("propose_booking", { ...input }, null);
         return { prepared: true, card: action.title, note: "Waiting for the user to press Confirm - NOT saved yet." };
       },
     };
 
-    return { list: TOOLS, handlers, actions, nodeName };
+    // remember what was looked up, for "those", "them", "the same"
+    const pick = (a) => {
+      const f = Object.fromEntries(["type", "commander", "status", "reason"].filter((k) => a?.[k]).map((k) => [k, String(a[k]).slice(0, 40)]));
+      return Object.keys(f).length ? f : null;
+    };
+    const lookups = {
+      search_vehicles(a, r) {
+        const mids = r.vehicles?.map((v) => v.mid) ?? r.rows?.map((x) => String(x).split("|")[0].trim()) ?? [];
+        if (mids.length) memo.lastList = { mids: mids.slice(0, 60), found: r.found ?? mids.length, filters: pick(a) };
+      },
+      get_vehicle(a, r) {
+        if (r.mid) memo.lastList = { mids: [r.mid], found: 1, filters: null };
+      },
+      fleet_summary(a) {
+        memo.filters = pick(a);
+      },
+      analyse_fleet(a) {
+        memo.filters = pick(a);
+      },
+    };
+    for (const [name, fn] of Object.entries(lookups)) {
+      const original = handlers[name];
+      handlers[name] = (args = {}) => {
+        const r = original(args);
+        if (r && !r.error) fn(args, r);
+        return r;
+      };
+    }
+    // what goes back to the app (and comes back with the next question)
+    const context = () => ({ lastList: memo.lastList, filters: memo.filters, lastAction: memo.lastAction });
+
+    return { list: TOOLS, handlers, actions, nodeName, memo, context };
   }
 
   async function runModel({ key, user, today, history, tools, page }) {

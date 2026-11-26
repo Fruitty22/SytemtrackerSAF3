@@ -12,7 +12,8 @@
     "start": "node server/index.js",
     "preview": "vite preview",
     "db:push": "node scripts/push-db.mjs",
-    "admin": "node scripts/create-admin.mjs"
+    "admin": "node scripts/create-admin.mjs",
+    "test:assistant": "node tests/assistant-eval.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

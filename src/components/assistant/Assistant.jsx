@@ -205,13 +205,20 @@ const Assistant = () => {
     setItems(next);
     setBusy(true);
     try {
+      // what the chat was about so far ("those", "same for luv", "undo")
+      const context = [...items].reverse().find((m) => m.context)?.context ?? null;
       const data = await api("/assistant/chat", {
         method: "POST",
-        body: { messages: next.map(({ role, content }) => ({ role, content })), page },
+        body: { messages: next.map(({ role, content }) => ({ role, content })), page, context },
       });
       setItems((list) => [
         ...list,
-        { role: "assistant", content: data.reply, actions: (data.actions ?? []).map((a) => ({ ...a, state: "pending" })) },
+        {
+          role: "assistant",
+          content: data.reply,
+          context: data.context ?? null,
+          actions: (data.actions ?? []).map((a) => ({ ...a, state: "pending" })),
+        },
       ]);
     } catch (err) {
       setError(err.message);
